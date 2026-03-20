@@ -1,0 +1,1554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Eadig Notes">
+<meta name="theme-color" content="#6B1F2A">
+<title>Eadig Manual Therapies — Session Notes</title>
+<link rel="manifest" id="pwa-manifest">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0; font-family: Georgia, serif; }
+  #root { height: 100vh; }
+  #splash {
+    position: fixed; inset: 0; background: #6B1F2A;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px; z-index: 9999; transition: opacity 0.4s ease;
+  }
+  #splash.hide { opacity: 0; pointer-events: none; }
+  .splash-logo { width: 64px; height: 64px; border: 3px solid #C9973A; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; color: #C9973A; font-weight: bold; font-family: Georgia, serif; }
+  .splash-name { color: #C9973A; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; }
+  .splash-sub { color: rgba(255,255,255,0.4); font-size: 11px; }
+</style>
+</head>
+<body>
+<div id="splash">
+  <div class="splash-logo">E</div>
+  <div class="splash-name">Eadig Manual Therapies</div>
+  <div class="splash-sub">Session Notes — Alpha 0.7.2</div>
+</div>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script>
+var __defProp = Object.defineProperty;
+var __defProps = Object.defineProperties;
+var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
+var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __propIsEnum = Object.prototype.propertyIsEnumerable;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __spreadValues = (a, b) => {
+  for (var prop in b || (b = {}))
+    if (__hasOwnProp.call(b, prop))
+      __defNormalProp(a, prop, b[prop]);
+  if (__getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(b)) {
+      if (__propIsEnum.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    }
+  return a;
+};
+var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+const { useState, useEffect, useCallback } = React;
+const C = {
+  maroon: "#6B1F2A",
+  gold: "#C9973A",
+  goldLight: "#E0B860",
+  cream: "#FAF6EF",
+  creamDark: "#F0E8D8",
+  text: "#2A1A1E",
+  muted: "#7A6068",
+  border: "#DDD0C0",
+  white: "#FFFFFF",
+  S: "#B05520",
+  O: "#1A5C6B",
+  A: "#3B5E2B",
+  P: "#4A3570",
+  softTissue: "#5C3A1E",
+  joint: "#1E3A5C"
+};
+const SOAP_TABS = ["S", "O", "A", "P"];
+const SOAP_LABELS = { S: "Subjective", O: "Objective", A: "Action", P: "Prescription" };
+const CLIENTS_KEY = "eadig_clients_v1";
+const SESSIONS_KEY = "eadig_sessions_v1";
+const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const storage = {
+  async getClients() {
+    try {
+      return JSON.parse(localStorage.getItem(CLIENTS_KEY) || "[]");
+    } catch (e) {
+      return [];
+    }
+  },
+  async saveClients(clients) {
+    try {
+      localStorage.setItem(CLIENTS_KEY, JSON.stringify(clients));
+    } catch (e) {
+      console.error(e);
+    }
+  },
+  async getSessions() {
+    try {
+      return JSON.parse(localStorage.getItem(SESSIONS_KEY) || "[]");
+    } catch (e) {
+      return [];
+    }
+  },
+  async saveSessions(sessions) {
+    try {
+      localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+};
+const CANONICAL_REGIONS = [
+  "Cranial",
+  "Cervical",
+  "Thoracic",
+  "Shoulder",
+  "Lumbar / Sacral",
+  "Hip",
+  "Knee",
+  "Elbow & Forearm",
+  "Wrist & Hand",
+  "Thigh",
+  "Lower Leg & Calf",
+  "Ankle & Foot"
+];
+const REGION_MODIFIERS = {
+  "Cranial": [{ plane: "Coronal", terms: ["Anterior", "Posterior"] }, { plane: "Position", terms: ["Superior", "Lateral", "Vertex"] }],
+  "Cervical": [{ plane: "Sagittal", terms: ["Left", "Right"] }, { plane: "Coronal", terms: ["Anterior", "Posterior"] }, { plane: "Transverse", terms: ["Superior", "Inferior"] }, { plane: "Position", terms: ["Lateral"] }],
+  "Thoracic": [{ plane: "Sagittal", terms: ["Left", "Right"] }, { plane: "Coronal", terms: ["Anterior", "Posterior"] }, { plane: "Transverse", terms: ["Superior", "Middle", "Inferior"] }, { plane: "Position", terms: ["Lateral", "Medial"] }],
+  "Shoulder": [{ plane: "Coronal", terms: ["Anterior", "Posterior"] }, { plane: "Transverse", terms: ["Superior", "Inferior"] }, { plane: "Position", terms: ["Lateral", "Medial"] }],
+  "Lumbar / Sacral": [{ plane: "Sagittal", terms: ["Left", "Right"] }, { plane: "Coronal", terms: ["Anterior", "Posterior"] }, { plane: "Transverse", terms: ["Superior", "Inferior"] }, { plane: "Position", terms: ["Lateral", "Central"] }],
+  "Hip": [{ plane: "Coronal", terms: ["Anterior", "Posterior"] }, { plane: "Transverse", terms: ["Superior", "Inferior"] }, { plane: "Position", terms: ["Lateral", "Medial"] }],
+  "Knee": [{ plane: "Coronal", terms: ["Anterior", "Posterior"] }, { plane: "Transverse", terms: ["Superior", "Inferior"] }, { plane: "Position", terms: ["Medial", "Lateral"] }],
+  "Elbow & Forearm": [{ plane: "Coronal", terms: ["Anterior", "Posterior"] }, { plane: "Position", terms: ["Medial", "Lateral", "Proximal", "Distal"] }],
+  "Wrist & Hand": [{ plane: "Coronal", terms: ["Dorsal", "Palmar"] }, { plane: "Position", terms: ["Radial", "Ulnar", "Proximal", "Distal"] }],
+  "Thigh": [{ plane: "Coronal", terms: ["Anterior", "Posterior"] }, { plane: "Position", terms: ["Medial", "Lateral", "Proximal", "Distal"] }],
+  "Lower Leg & Calf": [{ plane: "Coronal", terms: ["Anterior", "Posterior"] }, { plane: "Position", terms: ["Medial", "Lateral", "Proximal", "Distal"] }],
+  "Ankle & Foot": [{ plane: "Coronal", terms: ["Anterior", "Posterior", "Dorsal", "Plantar"] }, { plane: "Position", terms: ["Medial", "Lateral"] }]
+};
+const SOFT_TISSUE_TECHNIQUES = [
+  "General soft tissue",
+  "MFR (Myofascial release)",
+  "TrP (Trigger point therapy)",
+  "Cross-fibre friction",
+  "Pin and stretch",
+  "Passive stretch",
+  "PNF stretch",
+  "MET (Muscle energy technique)",
+  "Dry needling",
+  "Cupping"
+];
+const JOINT_TECHNIQUES = ["Joint mobilisation", "Traction", "Scapular mobilisation"];
+const TREATMENT_HIERARCHY = {
+  "Cranial": { softTissue: ["Scalp / galea aponeurotica", "Temporalis", "Masseter", "Pterygoid region", "Facial muscles", "Occipitals"], joints: ["TMJ (L)", "TMJ (R)"] },
+  "Cervical": { softTissue: ["Upper trapezius", "Levator scapulae", "Suboccipitals", "Scalenes", "SCM", "Cervical extensors", "Cervical flexors"], joints: ["Upper cervical (C0\u2013C2)", "Lower cervical (C3\u2013C7)", "CTJ"] },
+  "Thoracic": { softTissue: ["Thoracic erectors", "Middle trapezius", "Lower trapezius", "Rhomboids", "Latissimus dorsi", "Thoracolumbar fascia", "Intercostals"], joints: ["Thoracic facets", "Costovertebral joints", "CTJ", "TLJ"] },
+  "Shoulder": { softTissue: ["Rotator cuff region", "Upper trapezius", "Levator scapulae", "Deltoid", "Pec major", "Pec minor", "Latissimus dorsi", "Rhomboids", "Serratus anterior"], joints: ["GHJ", "ACJ", "SCJ", "Scapulothoracic"] },
+  "Lumbar / Sacral": { softTissue: ["Lumbar erectors", "Quadratus lumborum", "Multifidus region", "Psoas / iliacus region", "Piriformis", "Gluteal region", "Thoracolumbar fascia"], joints: ["Lumbar facets", "L5\u2013S1", "SIJ (L)", "SIJ (R)", "TLJ"] },
+  "Hip": { softTissue: ["Glute max", "Glute med / min", "TFL", "Adductor group", "Hip flexor region", "Deep hip rotators"], joints: ["Hip joint (AFJ)", "Anterior hip", "Posterior hip"] },
+  "Knee": { softTissue: ["Quadriceps group", "Hamstring insertions", "IT band region", "Popliteal region", "Calf origin region"], joints: ["Tibiofemoral joint", "Patellofemoral joint", "Proximal tib-fib joint"] },
+  "Elbow & Forearm": { softTissue: ["Wrist extensor group", "Wrist flexor group", "Brachioradialis", "Biceps tendon region", "Supinator / pronator region"], joints: ["Humeroulnar joint", "Humeroradial joint", "Proximal radioulnar joint"] },
+  "Wrist & Hand": { softTissue: ["Forearm flexor group", "Forearm extensor group", "Thenar region", "Hypothenar region", "Intrinsic hand region"], joints: ["Radiocarpal joint", "Midcarpal region", "Thumb CMC", "MCP / IP region"] },
+  "Thigh": { softTissue: ["Quadriceps group", "Hamstring group", "Adductor group", "IT band region"], joints: [] },
+  "Lower Leg & Calf": { softTissue: ["Gastrocnemius", "Soleus", "Tibialis anterior", "Peroneal group", "Deep posterior calf", "Achilles tendon region"], joints: ["Proximal tib-fib joint", "Distal tib-fib joint"] },
+  "Ankle & Foot": { softTissue: ["Plantar fascia region", "Intrinsic foot region", "Peroneal tendons", "Achilles tendon region"], joints: ["Talocrural joint", "Subtalar joint", "Midfoot region", "MTP region"] }
+};
+const SOCRATES_FIELDS = [
+  { key: "site", letter: "S", label: "Site", type: "site", regionField: { key: "region", label: "Region", options: [...CANONICAL_REGIONS] } },
+  { key: "onset", letter: "O", label: "Onset", type: "single", options: ["Acute \u2014 less than 2 weeks", "Subacute \u2014 2 to 12 weeks", "Chronic \u2014 more than 12 weeks", "Recurrent"] },
+  { key: "character", letter: "C", label: "Character", type: "single", options: ["Aching", "Sharp / stabbing", "Burning", "Throbbing", "Dull / pressure", "Cramping", "Shooting", "Tightness / stiffness"] },
+  { key: "radiation", letter: "R", label: "Radiation", type: "single", options: ["No radiation", "Local spread", "Radiates to arm", "Radiates to leg", "Radiates to head", "Radiates to chest", "Dermatomal pattern"] },
+  { key: "associations", letter: "A", label: "Associations", type: "single", options: ["None reported", "Numbness / tingling", "Weakness", "Swelling", "Clicking / crepitus", "Headaches", "Dizziness", "Multiple symptoms"] },
+  { key: "timing", letter: "T", label: "Time course", type: "single", options: ["Constant", "Intermittent", "Morning stiffness", "End-of-day worsening", "Activity-related", "Night pain", "Improving", "Worsening"] },
+  { key: "exacerbating", letter: "E", label: "Exacerbating & relieving", type: "multiDouble", fields: [
+    { key: "exacerbating", label: "Made worse by", options: ["Movement", "Rest", "Prolonged posture", "Loading / lifting", "Cold", "Heat", "Stress", "Morning", "Night"] },
+    { key: "relieving", label: "Relieved by", options: ["Rest", "Movement", "Heat", "Ice", "Analgesia", "Massage", "Stretching", "Sleep", "Position change"] }
+  ] },
+  { key: "severity", letter: "S", label: "Severity", type: "double", fields: [
+    { key: "severityRest", label: "At rest (0\u201310)", options: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"] },
+    { key: "severityWorst", label: "At worst (0\u201310)", options: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"] }
+  ] }
+];
+const GLOBAL_SYMPTOM_TESTS = [
+  { id: "pain-nrs", label: "Pain \u2014 NRS", results: ["0\u20132 (minimal)", "3\u20135 (moderate)", "6\u20138 (severe)", "9\u201310 (extreme)"], outcomes: ["Improved", "No change", "Worsened"] },
+  { id: "pain-quality", label: "Pain quality", results: ["Aching", "Sharp", "Burning", "Throbbing", "Diffuse", "Referred"], outcomes: ["Improved", "No change", "Worsened"] },
+  { id: "symp-24h", label: "24-hour behaviour", results: ["Morning stiffness", "Activity-related", "Constant", "Night pain"], outcomes: ["Improved", "No change", "Worsened"] }
+];
+const OBJECTIVE_CONFIG = {
+  "Cranial": {
+    "Movement / ROM": [
+      { id: "tmj-opening", label: "TMJ \u2014 mouth opening", results: ["Full", "Restricted", "Painful", "Deflection present"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "tmj-lat-dev", label: "TMJ \u2014 lateral deviation", results: ["Symmetrical", "Restricted left", "Restricted right"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Joint / Structure": [
+      { id: "tmj-play-l", label: "TMJ joint play (L)", results: ["Normal", "Restricted", "Painful", "Click present"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "tmj-play-r", label: "TMJ joint play (R)", results: ["Normal", "Restricted", "Painful", "Click present"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Tissue": [
+      { id: "palp-temporalis", label: "Palpation \u2014 temporalis", results: ["Nil tenderness", "Mild tenderness", "Moderate tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-masseter", label: "Palpation \u2014 masseter", results: ["Nil tenderness", "Mild tenderness", "Moderate tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-occipitals", label: "Palpation \u2014 occipitals", results: ["Nil tenderness", "Mild tenderness", "Guarding"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Symptoms": GLOBAL_SYMPTOM_TESTS
+  },
+  "Cervical": {
+    "Movement / ROM": [
+      { id: "arom-flex", label: "AROM \u2014 Flexion", results: ["Full ROM", "Reduced ROM", "Painful", "Pain at end range"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-ext", label: "AROM \u2014 Extension", results: ["Full ROM", "Reduced ROM", "Painful", "Pain at end range"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-rot-l", label: "AROM \u2014 Rotation (L)", results: ["Full ROM", "Reduced ROM", "Painful", "Pain at end range", "Compensated"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-rot-r", label: "AROM \u2014 Rotation (R)", results: ["Full ROM", "Reduced ROM", "Painful", "Pain at end range", "Compensated"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-sf-l", label: "AROM \u2014 Side flexion (L)", results: ["Full ROM", "Reduced ROM", "Painful", "Pain at end range"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-sf-r", label: "AROM \u2014 Side flexion (R)", results: ["Full ROM", "Reduced ROM", "Painful", "Pain at end range"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Joint / Structure": [
+      { id: "paivm-upper", label: "PAIVM \u2014 Upper cervical", results: ["Normal", "Stiff", "Painful", "Restricted", "Reproduces symptoms"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "paivm-lower", label: "PAIVM \u2014 Lower cervical", results: ["Normal", "Stiff", "Painful", "Restricted", "Reproduces symptoms"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "paivm-ctj", label: "PAIVM \u2014 CTJ", results: ["Normal", "Stiff", "Painful", "Restricted"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Tissue": [
+      { id: "palp-ut", label: "Palpation \u2014 Upper trapezius", results: ["Nil tenderness", "Mild tenderness", "Moderate tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-lev", label: "Palpation \u2014 Levator scapulae", results: ["Nil tenderness", "Mild tenderness", "Moderate tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-subocc", label: "Palpation \u2014 Suboccipitals", results: ["Nil tenderness", "Mild tenderness", "Guarding"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "length-scalene", label: "Length \u2014 Scalenes", results: ["Normal length", "Shortened", "Guarding", "Reproduces symptoms"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Symptoms": GLOBAL_SYMPTOM_TESTS
+  },
+  "Thoracic": {
+    "Movement / ROM": [
+      { id: "arom-rot", label: "AROM \u2014 Rotation", results: ["Full ROM", "Reduced ROM", "Painful", "Stiff"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-ext", label: "AROM \u2014 Extension", results: ["Full ROM", "Reduced ROM", "Painful", "Stiff"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "breathing", label: "Breathing pattern", results: ["Normal", "Restricted expansion", "Asymmetrical"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Joint / Structure": [
+      { id: "paivm-thor", label: "PAIVM \u2014 Thoracic", results: ["Normal", "Stiff", "Painful", "Restricted"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "rib-spring", label: "Rib spring", results: ["Normal", "Restricted", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Tissue": [
+      { id: "palp-rhomboids", label: "Palpation \u2014 Rhomboids", results: ["Nil tenderness", "Mild tenderness", "Moderate tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-t-erect", label: "Palpation \u2014 Thoracic erectors", results: ["Normal tone", "Hypertonic", "Tender", "Guarding"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Symptoms": GLOBAL_SYMPTOM_TESTS
+  },
+  "Shoulder": {
+    "Movement / ROM": [
+      { id: "arom-abd", label: "AROM \u2014 Abduction", results: ["Full ROM", "Reduced ROM", "Painful", "Pain at end range", "Compensated"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-flex", label: "AROM \u2014 Flexion", results: ["Full ROM", "Reduced ROM", "Painful", "Pain at end range", "Compensated"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-er", label: "AROM \u2014 External rotation", results: ["Full ROM", "Reduced ROM", "Painful", "Pain at end range"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-ir", label: "AROM \u2014 Internal rotation", results: ["Full ROM", "Reduced ROM", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "func-hbb", label: "Functional \u2014 Hand behind back", results: ["Full range", "Limited", "Pain-limited"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "painful-arc", label: "Painful arc", results: ["Present", "Absent"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "scap-dyskinesis", label: "Scapular dyskinesis", results: ["Present", "Absent"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Joint / Structure": [
+      { id: "ghj-play", label: "Joint play \u2014 GHJ", results: ["Normal", "Restricted", "Painful", "Stiff"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "acj-comp", label: "ACJ compression", results: ["Negative", "Positive \u2014 local pain", "Positive \u2014 referred"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Tissue": [
+      { id: "palp-rc", label: "Palpation \u2014 Rotator cuff region", results: ["Nil tenderness", "Mild tenderness", "Moderate tenderness", "Severe tenderness"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-pec-min", label: "Palpation \u2014 Pec minor", results: ["Nil tenderness", "Mild tenderness", "Guarding"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-ut", label: "Palpation \u2014 Upper trapezius", results: ["Nil tenderness", "Mild tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Symptoms": GLOBAL_SYMPTOM_TESTS
+  },
+  "Lumbar / Sacral": {
+    "Movement / ROM": [
+      { id: "arom-flex", label: "AROM \u2014 Flexion", results: ["Full ROM", "Reduced ROM", "Painful", "Pain at end range"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-ext", label: "AROM \u2014 Extension", results: ["Full ROM", "Reduced ROM", "Painful", "Pain at end range"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-rot", label: "AROM \u2014 Rotation", results: ["Full ROM", "Reduced ROM", "Painful", "Compensated"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-sf", label: "AROM \u2014 Side flex", results: ["Full ROM", "Reduced ROM", "Painful", "Compensated"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Joint / Structure": [
+      { id: "paivm-lum", label: "PAIVM \u2014 Lumbar", results: ["Normal", "Stiff", "Painful", "Restricted"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "joint-l5s1", label: "Joint play \u2014 L5\u2013S1", results: ["Normal", "Restricted", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "sij-spring", label: "SIJ compression", results: ["Negative", "Positive (L)", "Positive (R)"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Tissue": [
+      { id: "palp-ql", label: "Palpation \u2014 QL", results: ["Nil tenderness", "Mild tenderness", "Moderate tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-l-erect", label: "Palpation \u2014 Lumbar erectors", results: ["Normal tone", "Hypertonic", "Tender", "Guarding"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-piriform", label: "Palpation \u2014 Piriformis", results: ["Nil tenderness", "Mild tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Symptoms": GLOBAL_SYMPTOM_TESTS
+  },
+  "Hip": {
+    "Movement / ROM": [
+      { id: "arom-hip-flex", label: "AROM \u2014 Hip flexion", results: ["Full ROM", "Reduced ROM", "Painful", "Compensated"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-hip-ir", label: "AROM \u2014 Internal rotation", results: ["Full ROM", "Reduced ROM", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-hip-er", label: "AROM \u2014 External rotation", results: ["Full ROM", "Reduced ROM", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "trendelenburg", label: "Trendelenburg sign", results: ["Negative", "Positive (L)", "Positive (R)"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Joint / Structure": [
+      { id: "hip-joint-play", label: "Joint play \u2014 AFJ", results: ["Normal", "Restricted", "Painful", "Stiff"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "faber-response", label: "FABER response", results: ["Negative", "Positive \u2014 local pain", "Positive \u2014 referred"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Tissue": [
+      { id: "palp-glute-med", label: "Palpation \u2014 Glute med / min", results: ["Nil tenderness", "Mild tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-deep-hip", label: "Palpation \u2014 Deep hip rotators", results: ["Nil tenderness", "Mild tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-tfl", label: "Palpation \u2014 TFL", results: ["Nil tenderness", "Mild tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Symptoms": GLOBAL_SYMPTOM_TESTS
+  },
+  "Knee": {
+    "Movement / ROM": [
+      { id: "arom-flex", label: "AROM \u2014 Knee flexion", results: ["Full ROM", "Reduced ROM", "Painful", "Pain at end range"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-ext", label: "AROM \u2014 Knee extension", results: ["Full ROM", "Reduced ROM", "Painful", "Lag present"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Joint / Structure": [
+      { id: "tfj-play", label: "Joint play \u2014 Tibiofemoral", results: ["Normal", "Restricted", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "pfj-grind", label: "Patellofemoral grind", results: ["Negative", "Positive", "Crepitus only"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "valgus-st", label: "Valgus stress test", results: ["Negative", "Positive \u2014 laxity", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "varus-st", label: "Varus stress test", results: ["Negative", "Positive \u2014 laxity", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Tissue": [
+      { id: "palp-quad-ten", label: "Palpation \u2014 Quadriceps tendon", results: ["Nil tenderness", "Mild tenderness", "Moderate tenderness"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-it-band", label: "Palpation \u2014 IT band region", results: ["Nil tenderness", "Mild tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-popliteal", label: "Palpation \u2014 Popliteal region", results: ["Nil tenderness", "Mild tenderness", "Guarding"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Symptoms": GLOBAL_SYMPTOM_TESTS
+  },
+  "Elbow & Forearm": {
+    "Movement / ROM": [
+      { id: "arom-flex", label: "AROM \u2014 Elbow flexion", results: ["Full ROM", "Reduced ROM", "Painful", "Pain at end range"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-ext", label: "AROM \u2014 Elbow extension", results: ["Full ROM", "Reduced ROM", "Painful", "Pain at end range"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-pro", label: "AROM \u2014 Pronation", results: ["Full ROM", "Reduced ROM", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "arom-sup", label: "AROM \u2014 Supination", results: ["Full ROM", "Reduced ROM", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "wrist-ext", label: "Wrist extension (resisted)", results: ["Strong and painless", "Weak and painless", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "wrist-flex", label: "Wrist flexion (resisted)", results: ["Strong and painless", "Weak and painless", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Joint / Structure": [
+      { id: "humeroulnar-play", label: "Joint play \u2014 Humeroulnar", results: ["Normal", "Restricted", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "radial-play", label: "Joint play \u2014 Radial head", results: ["Normal", "Restricted", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Tissue": [
+      { id: "palp-lat-epic", label: "Palpation \u2014 Lateral epicondyle", results: ["Nil tenderness", "Mild tenderness", "Moderate tenderness"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-med-epic", label: "Palpation \u2014 Medial epicondyle", results: ["Nil tenderness", "Mild tenderness", "Moderate tenderness"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-ext-group", label: "Palpation \u2014 Extensor group", results: ["Nil tenderness", "Mild tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Symptoms": GLOBAL_SYMPTOM_TESTS
+  },
+  "Wrist & Hand": {
+    "Movement / ROM": [
+      { id: "wrist-flex", label: "Wrist flexion", results: ["Full ROM", "Reduced ROM", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "wrist-ext", label: "Wrist extension", results: ["Full ROM", "Reduced ROM", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "grip", label: "Grip strength", results: ["Normal", "Reduced", "Painful on grip"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Joint / Structure": [
+      { id: "radiocarpal-play", label: "Joint play \u2014 Radiocarpal", results: ["Normal", "Restricted", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Tissue": [
+      { id: "palp-thenar", label: "Palpation \u2014 Thenar region", results: ["Nil tenderness", "Mild tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-forearm-flex", label: "Palpation \u2014 Forearm flexors", results: ["Nil tenderness", "Mild tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Symptoms": GLOBAL_SYMPTOM_TESTS
+  },
+  "Thigh": {
+    "Movement / ROM": [
+      { id: "slr", label: "Straight leg raise (SLR)", results: ["Negative", "Positive \u2014 neural", "Positive \u2014 hamstring"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "length-ham", label: "Hamstring length", results: ["Normal", "Shortened", "Reproduces symptoms"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "length-quad", label: "Quadriceps length", results: ["Normal", "Shortened", "Reproduces symptoms"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Joint / Structure": [],
+    "Tissue": [
+      { id: "palp-quads", label: "Palpation \u2014 Quadriceps group", results: ["Nil tenderness", "Mild tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-hams", label: "Palpation \u2014 Hamstring group", results: ["Nil tenderness", "Mild tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-itband", label: "Palpation \u2014 IT band", results: ["Nil tenderness", "Mild tenderness", "Taut band"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Symptoms": GLOBAL_SYMPTOM_TESTS
+  },
+  "Lower Leg & Calf": {
+    "Movement / ROM": [
+      { id: "dorsiflexion", label: "Dorsiflexion", results: ["Full ROM", "Reduced ROM", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "length-gastroc", label: "Gastroc length", results: ["Normal", "Shortened", "Reproduces symptoms"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "length-soleus", label: "Soleus length", results: ["Normal", "Shortened", "Reproduces symptoms"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Joint / Structure": [
+      { id: "prox-tibfib", label: "Joint play \u2014 Proximal tib-fib", results: ["Normal", "Restricted", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Tissue": [
+      { id: "palp-gastroc", label: "Palpation \u2014 Gastrocnemius", results: ["Nil tenderness", "Mild tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-soleus", label: "Palpation \u2014 Soleus", results: ["Nil tenderness", "Mild tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-achilles", label: "Palpation \u2014 Achilles", results: ["Nil tenderness", "Mild tenderness", "Thickening noted"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Symptoms": GLOBAL_SYMPTOM_TESTS
+  },
+  "Ankle & Foot": {
+    "Movement / ROM": [
+      { id: "dorsiflex", label: "Dorsiflexion", results: ["Full ROM", "Reduced ROM", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "plantarflex", label: "Plantarflexion", results: ["Full ROM", "Reduced ROM", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "inversion", label: "Inversion", results: ["Full ROM", "Reduced ROM", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "eversion", label: "Eversion", results: ["Full ROM", "Reduced ROM", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Joint / Structure": [
+      { id: "talocrural", label: "Joint play \u2014 Talocrural", results: ["Normal", "Restricted", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "subtalar", label: "Joint play \u2014 Subtalar", results: ["Normal", "Restricted", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Tissue": [
+      { id: "palp-plantar", label: "Palpation \u2014 Plantar fascia", results: ["Nil tenderness", "Mild tenderness", "Moderate tenderness"], outcomes: ["Improved", "No change", "Aggravated"] },
+      { id: "palp-achilles", label: "Palpation \u2014 Achilles tendon", results: ["Nil tenderness", "Mild tenderness", "Thickening"], outcomes: ["Improved", "No change", "Aggravated"] }
+    ],
+    "Symptoms": GLOBAL_SYMPTOM_TESTS
+  }
+};
+const FALLBACK_OBJECTIVE = {
+  "Movement / ROM": [{ id: "arom-generic", label: "AROM \u2014 Functional movement", results: ["Full ROM", "Reduced ROM", "Painful", "Compensated"], outcomes: ["Improved", "No change", "Aggravated"] }],
+  "Joint / Structure": [{ id: "joint-generic", label: "Joint play", results: ["Normal", "Restricted", "Painful"], outcomes: ["Improved", "No change", "Aggravated"] }],
+  "Tissue": [{ id: "palp-generic", label: "Palpation", results: ["Nil tenderness", "Mild tenderness", "Moderate tenderness", "TrP present"], outcomes: ["Improved", "No change", "Aggravated"] }],
+  "Symptoms": GLOBAL_SYMPTOM_TESTS
+};
+const SPECIAL_TESTS_BY_REGION = {
+  "Cranial": ["TMJ load test", "Chvostek's sign"],
+  "Cervical": ["Spurling's test", "Cervical distraction test", "ULTT (Median)", "ULTT (Radial)", "ULTT (Ulnar)", "Shoulder abduction relief test", "Sharp-Purser test", "Vertebral artery test"],
+  "Thoracic": ["Thoracic compression test", "Passive thoracic extension", "Rib spring test", "Slump test (thoracic)"],
+  "Shoulder": ["Hawkins-Kennedy test", "Neer's test", "Empty Can test", "Full Can test", "Drop Arm test", "Speed's test", "Yergason's test", "Apprehension test", "O'Brien's test", "Cross-body adduction test", "Lift-Off test", "AC joint compression test"],
+  "Lumbar / Sacral": ["Straight leg raise (SLR)", "Slump test", "Prone knee bend", "Kemp's test", "FABER test", "Gaenslen's test", "Sacral compression test", "Thigh thrust test", "Gillet's test"],
+  "Hip": ["Thomas test", "Ober's test", "Hip scour test", "Trendelenburg test", "FABER test", "FADIR test"],
+  "Knee": ["McMurray's test", "Lachman's test", "Anterior drawer test", "Posterior drawer test", "Patella grind test", "Thessaly test", "Valgus stress test", "Varus stress test"],
+  "Elbow & Forearm": ["Cozen's test", "Mill's test", "Medial epicondyle stress test", "Valgus stress test", "Varus stress test", "Elbow flexion test", "Tinel's sign at elbow"],
+  "Wrist & Hand": ["Phalen's test", "Tinel's sign at wrist", "Finkelstein's test", "Watson's test", "Carpal compression test", "Allen's test"],
+  "Thigh": ["90-90 SLR", "Ely's test", "Rectus femoris length test"],
+  "Lower Leg & Calf": ["Thompson test", "Windlass test"],
+  "Ankle & Foot": ["Anterior drawer test (ankle)", "Talar tilt test", "Thompson test", "Ottawa ankle rules assessment", "Windlass test", "Mulder's click test"]
+};
+const OBJECTIVE_MODE_TABS = ["Movement / ROM", "Joint / Structure", "Tissue", "Symptoms", "Special Tests"];
+const TEST_RESULT_OPTIONS = ["+", "\u2212", "N/T"];
+const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+const CONTRAINDICATIONS = [
+  "Deep vein thrombosis (DVT) / blood clots",
+  "Active cancer / malignancy",
+  "Acute inflammation or infection",
+  "Open wounds or skin infections",
+  "Recent fracture (unhealed)",
+  "Severe osteoporosis",
+  "Pregnancy (first trimester or high risk)",
+  "Pacemaker or implanted device",
+  "Recent surgery (within 6 weeks)",
+  "Fever or acute illness",
+  "Anticoagulant medication (blood thinners)",
+  "Varicose veins (in affected area)",
+  "Uncontrolled epilepsy",
+  "Diabetes with peripheral neuropathy",
+  "Haemophilia or bleeding disorder",
+  "Hypermobility syndrome (EDS etc.)",
+  "Acute disc herniation / nerve compression",
+  "Severe hypertension (uncontrolled)"
+];
+const labelStyle = (color = C.muted) => ({
+  display: "block",
+  fontSize: "10px",
+  fontWeight: "bold",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color,
+  marginBottom: "3px"
+});
+const inputStyle = {
+  width: "100%",
+  padding: "6px 8px",
+  border: `1px solid ${C.border}`,
+  borderRadius: "5px",
+  background: C.cream,
+  fontFamily: "inherit",
+  fontSize: "12px",
+  color: C.text,
+  boxSizing: "border-box"
+};
+function AppBar({ title, subtitle, onBack, actions }) {
+  return /* @__PURE__ */ React.createElement("header", { style: { padding: "9px 20px", background: C.maroon, display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 2px 8px rgba(0,0,0,0.2)", flexShrink: 0 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "12px" } }, onBack && /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: onBack,
+      style: { background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "5px", color: C.white, cursor: "pointer", padding: "4px 10px", fontSize: "12px", fontFamily: "inherit" }
+    },
+    "\u2190 Back"
+  ), /* @__PURE__ */ React.createElement("div", { style: { width: "28px", height: "28px", border: `2px solid ${C.gold}`, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", color: C.gold, fontWeight: "bold", flexShrink: 0 } }, "E"), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { color: C.gold, fontSize: "12px", letterSpacing: "0.1em", textTransform: "uppercase" } }, "Eadig Manual Therapies"), /* @__PURE__ */ React.createElement("div", { style: { color: "rgba(255,255,255,0.5)", fontSize: "10px" } }, subtitle || "Session Notes \u2014 Alpha 0.6"))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px", alignItems: "center" } }, actions));
+}
+function ClientListScreen({ clients, onSelectClient, onNewClient, onBackup, onRestore }) {
+  const [search, setSearch] = useState("");
+  const filtered = clients.filter(
+    (c) => c.name.toLowerCase().includes(search.toLowerCase())
+  ).sort((a, b) => a.name.localeCompare(b.name));
+  return /* @__PURE__ */ React.createElement("div", { style: { height: "100vh", display: "flex", flexDirection: "column", background: C.cream, overflow: "hidden" } }, /* @__PURE__ */ React.createElement(AppBar, { subtitle: "Client Records \u2014 Alpha 0.7.2", actions: /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("label", { style: { padding: "5px 12px", background: "rgba(255,255,255,0.15)", color: C.white, border: "1px solid rgba(255,255,255,0.3)", borderRadius: "5px", cursor: "pointer", fontFamily: "inherit", fontSize: "11px", whiteSpace: "nowrap" } }, "\u2191 Restore", /* @__PURE__ */ React.createElement("input", { type: "file", accept: ".json", style: { display: "none" }, onChange: onRestore })), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: onBackup,
+      style: { padding: "5px 12px", background: "rgba(255,255,255,0.15)", color: C.white, border: "1px solid rgba(255,255,255,0.3)", borderRadius: "5px", cursor: "pointer", fontFamily: "inherit", fontSize: "11px", whiteSpace: "nowrap" }
+    },
+    "\u2193 Backup"
+  ), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: onNewClient,
+      style: { padding: "5px 14px", background: C.gold, color: C.maroon, border: "none", borderRadius: "5px", cursor: "pointer", fontFamily: "inherit", fontSize: "11px", fontWeight: "bold" }
+    },
+    "+ New Client"
+  )) }), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, padding: "20px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "16px" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "text",
+      placeholder: "Search clients\u2026",
+      value: search,
+      onChange: (e) => setSearch(e.target.value),
+      style: __spreadProps(__spreadValues({}, inputStyle), { fontSize: "13px", padding: "8px 12px" })
+    }
+  )), clients.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: C.muted, gap: "12px", paddingTop: "60px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "40px", opacity: 0.2 } }, "\u{1F464}"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "14px" } }, "No clients yet"), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: onNewClient,
+      style: { padding: "8px 20px", background: C.maroon, color: C.white, border: "none", borderRadius: "6px", cursor: "pointer", fontFamily: "inherit", fontSize: "12px" }
+    },
+    "Add your first client"
+  )) : filtered.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { color: C.muted, fontSize: "13px", textAlign: "center", paddingTop: "40px" } }, 'No clients match "', search, '"') : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "6px" } }, filtered.map((client) => /* @__PURE__ */ React.createElement(
+    "div",
+    {
+      key: client.id,
+      onClick: () => onSelectClient(client.id),
+      style: { background: C.white, border: `1px solid ${C.border}`, borderLeft: `4px solid ${C.maroon}`, borderRadius: "8px", padding: "12px 16px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", transition: "all 0.15s" }
+    },
+    /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "bold", fontSize: "14px", color: C.text } }, client.name), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: C.muted, marginTop: "2px" } }, client.dob ? `DOB: ${client.dob}` : "", client.dob && client.phone ? " \xB7 " : "", client.phone || "")),
+    /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: C.muted, textAlign: "right" } }, client.sessionCount > 0 ? /* @__PURE__ */ React.createElement("span", { style: { background: C.creamDark, border: `1px solid ${C.border}`, borderRadius: "10px", padding: "2px 8px" } }, client.sessionCount, " session", client.sessionCount !== 1 ? "s" : "") : /* @__PURE__ */ React.createElement("span", { style: { color: C.border } }, "No sessions yet"))
+  )))));
+}
+const EMPTY_CLIENT = {
+  id: null,
+  name: "",
+  dob: "",
+  sex: "",
+  phone: "",
+  email: "",
+  address: "",
+  emergencyContact: "",
+  emergencyPhone: "",
+  medicalConditions: "",
+  medications: "",
+  allergies: "",
+  previousSurgeries: "",
+  previousInjuries: "",
+  underMedicalCare: false,
+  medicalCareDetails: "",
+  previousMassage: false,
+  massageFrequency: "",
+  contraindications: [],
+  pressurePreference: "",
+  areasToAvoid: "",
+  treatmentGoals: "",
+  consentDate: today,
+  createdAt: null
+};
+function IntakeSection({ title, color = C.maroon, children }) {
+  return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", fontWeight: "bold", letterSpacing: "0.08em", textTransform: "uppercase", color, borderBottom: `1px solid ${C.border}`, paddingBottom: "6px", marginBottom: "12px" } }, title), children);
+}
+function IntakeFormScreen({ client: initialClient, onSave, onCancel }) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
+  const [form, setForm] = useState(initialClient || EMPTY_CLIENT);
+  const set = (field, value) => setForm((f) => __spreadProps(__spreadValues({}, f), { [field]: value }));
+  const isNew = !form.id;
+  const toggleContraindication = (item) => {
+    var _a2;
+    const current = (_a2 = form.contraindications) != null ? _a2 : [];
+    set("contraindications", current.includes(item) ? current.filter((x) => x !== item) : [...current, item]);
+  };
+  const handleSave = () => {
+    if (!form.name.trim()) {
+      alert("Client name is required.");
+      return;
+    }
+    onSave(__spreadProps(__spreadValues({}, form), { id: form.id || genId(), createdAt: form.createdAt || today }));
+  };
+  const iStyle = __spreadValues({}, inputStyle);
+  const taStyle = __spreadProps(__spreadValues({}, inputStyle), { resize: "vertical", lineHeight: "1.5" });
+  const fieldWrap = { marginBottom: "10px" };
+  return /* @__PURE__ */ React.createElement("div", { style: { height: "100vh", display: "flex", flexDirection: "column", background: C.cream, overflow: "hidden", fontFamily: "'Georgia', 'Times New Roman', serif" } }, /* @__PURE__ */ React.createElement(
+    AppBar,
+    {
+      subtitle: isNew ? "New Client \u2014 Intake Form" : `Edit \u2014 ${form.name}`,
+      onBack: onCancel,
+      actions: /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: handleSave,
+          style: { padding: "5px 14px", background: C.gold, color: C.maroon, border: "none", borderRadius: "5px", cursor: "pointer", fontFamily: "inherit", fontSize: "11px", fontWeight: "bold" }
+        },
+        isNew ? "Save Client" : "Update Client"
+      )
+    }
+  ), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "24px", maxWidth: "680px", margin: "0 auto", width: "100%" } }, /* @__PURE__ */ React.createElement(IntakeSection, { title: "Personal Details" }, /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" } }, /* @__PURE__ */ React.createElement("div", { style: { gridColumn: "1 / -1", marginBottom: "10px" } }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Full name *"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "text",
+      value: form.name,
+      placeholder: "Full legal name",
+      onChange: (e) => set("name", e.target.value),
+      style: __spreadProps(__spreadValues({}, iStyle), { fontWeight: "bold", fontSize: "13px" })
+    }
+  )), /* @__PURE__ */ React.createElement("div", { style: fieldWrap }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Date of birth"), /* @__PURE__ */ React.createElement("input", { type: "date", value: (_a = form.dob) != null ? _a : "", onChange: (e) => set("dob", e.target.value), style: iStyle })), /* @__PURE__ */ React.createElement("div", { style: fieldWrap }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Sex"), /* @__PURE__ */ React.createElement("select", { value: (_b = form.sex) != null ? _b : "", onChange: (e) => set("sex", e.target.value), style: iStyle }, /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 select \u2014"), /* @__PURE__ */ React.createElement("option", null, "Male"), /* @__PURE__ */ React.createElement("option", null, "Female"), /* @__PURE__ */ React.createElement("option", null, "Other"), /* @__PURE__ */ React.createElement("option", null, "Prefer not to say"))), /* @__PURE__ */ React.createElement("div", { style: fieldWrap }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Phone"), /* @__PURE__ */ React.createElement("input", { type: "tel", value: (_c = form.phone) != null ? _c : "", placeholder: "0400 000 000", onChange: (e) => set("phone", e.target.value), style: iStyle })), /* @__PURE__ */ React.createElement("div", { style: fieldWrap }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Email"), /* @__PURE__ */ React.createElement("input", { type: "email", value: (_d = form.email) != null ? _d : "", placeholder: "name@email.com", onChange: (e) => set("email", e.target.value), style: iStyle })), /* @__PURE__ */ React.createElement("div", { style: __spreadValues({ gridColumn: "1 / -1" }, fieldWrap) }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Address"), /* @__PURE__ */ React.createElement("textarea", { rows: 2, value: (_e = form.address) != null ? _e : "", placeholder: "Street address, suburb, state, postcode", onChange: (e) => set("address", e.target.value), style: taStyle })), /* @__PURE__ */ React.createElement("div", { style: fieldWrap }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Emergency contact name"), /* @__PURE__ */ React.createElement("input", { type: "text", value: (_f = form.emergencyContact) != null ? _f : "", placeholder: "Full name", onChange: (e) => set("emergencyContact", e.target.value), style: iStyle })), /* @__PURE__ */ React.createElement("div", { style: fieldWrap }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Emergency contact phone"), /* @__PURE__ */ React.createElement("input", { type: "tel", value: (_g = form.emergencyPhone) != null ? _g : "", placeholder: "0400 000 000", onChange: (e) => set("emergencyPhone", e.target.value), style: iStyle })))), /* @__PURE__ */ React.createElement(IntakeSection, { title: "Medical History", color: C.S }, /* @__PURE__ */ React.createElement("div", { style: fieldWrap }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Current medical conditions"), /* @__PURE__ */ React.createElement("textarea", { rows: 2, value: (_h = form.medicalConditions) != null ? _h : "", placeholder: "List any diagnosed conditions, e.g. hypertension, diabetes, arthritis\u2026", onChange: (e) => set("medicalConditions", e.target.value), style: taStyle })), /* @__PURE__ */ React.createElement("div", { style: fieldWrap }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Current medications"), /* @__PURE__ */ React.createElement("textarea", { rows: 2, value: (_i = form.medications) != null ? _i : "", placeholder: "Include name and purpose if known\u2026", onChange: (e) => set("medications", e.target.value), style: taStyle })), /* @__PURE__ */ React.createElement("div", { style: fieldWrap }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Allergies"), /* @__PURE__ */ React.createElement("textarea", { rows: 1, value: (_j = form.allergies) != null ? _j : "", placeholder: "Especially to oils, lotions, latex\u2026", onChange: (e) => set("allergies", e.target.value), style: taStyle })), /* @__PURE__ */ React.createElement("div", { style: fieldWrap }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Previous surgeries"), /* @__PURE__ */ React.createElement("textarea", { rows: 2, value: (_k = form.previousSurgeries) != null ? _k : "", placeholder: "Type and approximate year\u2026", onChange: (e) => set("previousSurgeries", e.target.value), style: taStyle })), /* @__PURE__ */ React.createElement("div", { style: fieldWrap }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Previous injuries"), /* @__PURE__ */ React.createElement("textarea", { rows: 2, value: (_l = form.previousInjuries) != null ? _l : "", placeholder: "Fractures, sprains, significant trauma\u2026", onChange: (e) => set("previousInjuries", e.target.value), style: taStyle })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "16px", marginBottom: "10px", flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Currently under medical care?"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px", marginTop: "4px" } }, ["Yes", "No"].map((opt) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: opt,
+      onClick: () => set("underMedicalCare", opt === "Yes"),
+      style: { padding: "4px 14px", border: `1px solid ${form.underMedicalCare === (opt === "Yes") ? C.S : C.border}`, borderRadius: "10px", background: form.underMedicalCare === (opt === "Yes") ? C.S : C.cream, color: form.underMedicalCare === (opt === "Yes") ? C.white : C.muted, cursor: "pointer", fontFamily: "inherit", fontSize: "11px" }
+    },
+    opt
+  )))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Previous massage therapy?"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px", marginTop: "4px" } }, ["Yes", "No"].map((opt) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: opt,
+      onClick: () => set("previousMassage", opt === "Yes"),
+      style: { padding: "4px 14px", border: `1px solid ${form.previousMassage === (opt === "Yes") ? C.S : C.border}`, borderRadius: "10px", background: form.previousMassage === (opt === "Yes") ? C.S : C.cream, color: form.previousMassage === (opt === "Yes") ? C.white : C.muted, cursor: "pointer", fontFamily: "inherit", fontSize: "11px" }
+    },
+    opt
+  ))))), form.underMedicalCare && /* @__PURE__ */ React.createElement("div", { style: fieldWrap }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Medical care details"), /* @__PURE__ */ React.createElement("textarea", { rows: 1, value: (_m = form.medicalCareDetails) != null ? _m : "", placeholder: "Practitioner name / reason\u2026", onChange: (e) => set("medicalCareDetails", e.target.value), style: taStyle })), form.previousMassage && /* @__PURE__ */ React.createElement("div", { style: fieldWrap }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Massage frequency"), /* @__PURE__ */ React.createElement("input", { type: "text", value: (_n = form.massageFrequency) != null ? _n : "", placeholder: "e.g. Monthly, rarely, as needed\u2026", onChange: (e) => set("massageFrequency", e.target.value), style: iStyle }))), /* @__PURE__ */ React.createElement(IntakeSection, { title: "Contraindications & Precautions", color: "#C62828" }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: C.muted, marginBottom: "10px", fontStyle: "italic" } }, "Tick any that apply. These will be visible at the top of each session."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "6px" } }, CONTRAINDICATIONS.map((item) => {
+    var _a2;
+    const checked = ((_a2 = form.contraindications) != null ? _a2 : []).includes(item);
+    return /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        key: item,
+        onClick: () => toggleContraindication(item),
+        style: { display: "flex", alignItems: "center", gap: "10px", padding: "7px 10px", background: checked ? "#FEF2F2" : C.white, border: `1px solid ${checked ? "#FECACA" : C.border}`, borderRadius: "6px", cursor: "pointer", transition: "all 0.15s" }
+      },
+      /* @__PURE__ */ React.createElement("div", { style: { width: "16px", height: "16px", border: `2px solid ${checked ? "#C62828" : C.border}`, borderRadius: "3px", background: checked ? "#C62828" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, checked && /* @__PURE__ */ React.createElement("span", { style: { color: C.white, fontSize: "10px", fontWeight: "bold" } }, "\u2713")),
+      /* @__PURE__ */ React.createElement("span", { style: { fontSize: "12px", color: checked ? "#C62828" : C.text } }, item)
+    );
+  }))), /* @__PURE__ */ React.createElement(IntakeSection, { title: "Treatment Preferences", color: C.P }, /* @__PURE__ */ React.createElement("div", { style: { marginBottom: "10px" } }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Pressure preference"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px", marginTop: "4px", flexWrap: "wrap" } }, ["Light", "Light\u2013medium", "Medium", "Medium\u2013firm", "Firm"].map((opt) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: opt,
+      onClick: () => set("pressurePreference", opt),
+      style: { padding: "4px 12px", border: `1px solid ${form.pressurePreference === opt ? C.P : C.border}`, borderRadius: "10px", background: form.pressurePreference === opt ? C.P : C.cream, color: form.pressurePreference === opt ? C.white : C.muted, cursor: "pointer", fontFamily: "inherit", fontSize: "11px" }
+    },
+    opt
+  )))), /* @__PURE__ */ React.createElement("div", { style: fieldWrap }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Areas to avoid"), /* @__PURE__ */ React.createElement("textarea", { rows: 1, value: (_o = form.areasToAvoid) != null ? _o : "", placeholder: "e.g. Left shoulder, abdomen\u2026", onChange: (e) => set("areasToAvoid", e.target.value), style: taStyle })), /* @__PURE__ */ React.createElement("div", { style: fieldWrap }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Treatment goals"), /* @__PURE__ */ React.createElement("textarea", { rows: 2, value: (_p = form.treatmentGoals) != null ? _p : "", placeholder: "What does the client hope to achieve from treatment?", onChange: (e) => set("treatmentGoals", e.target.value), style: taStyle }))), /* @__PURE__ */ React.createElement(IntakeSection, { title: "Consent", color: C.O }, /* @__PURE__ */ React.createElement("div", { style: { background: C.white, border: `1px solid ${C.border}`, borderRadius: "6px", padding: "12px", fontSize: "11px", color: C.muted, lineHeight: "1.7", marginBottom: "10px" } }, "I consent to remedial massage treatment and confirm that the information provided above is accurate to the best of my knowledge. I understand that massage therapy is not a substitute for medical diagnosis or treatment."), /* @__PURE__ */ React.createElement("div", { style: fieldWrap }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Consent date"), /* @__PURE__ */ React.createElement("input", { type: "date", value: (_q = form.consentDate) != null ? _q : "", onChange: (e) => set("consentDate", e.target.value), style: iStyle })))));
+}
+function ClientProfileScreen({ client, sessions, onNewSession, onOpenSession, onEditClient, onBack }) {
+  var _a;
+  const clientSessions = sessions.filter((s) => s.clientId === client.id).sort((a, b) => b.date.localeCompare(a.date));
+  const hasContraindications = ((_a = client.contraindications) != null ? _a : []).length > 0;
+  return /* @__PURE__ */ React.createElement("div", { style: { height: "100vh", display: "flex", flexDirection: "column", background: C.cream, overflow: "hidden", fontFamily: "'Georgia', 'Times New Roman', serif" } }, /* @__PURE__ */ React.createElement(
+    AppBar,
+    {
+      subtitle: `${client.name} \u2014 Profile`,
+      onBack,
+      actions: /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px" } }, /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: onEditClient,
+          style: { padding: "5px 12px", background: "rgba(255,255,255,0.15)", color: C.white, border: "1px solid rgba(255,255,255,0.3)", borderRadius: "5px", cursor: "pointer", fontFamily: "inherit", fontSize: "11px" }
+        },
+        "Edit intake"
+      ), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: onNewSession,
+          style: { padding: "5px 14px", background: C.gold, color: C.maroon, border: "none", borderRadius: "5px", cursor: "pointer", fontFamily: "inherit", fontSize: "11px", fontWeight: "bold" }
+        },
+        "+ New Session"
+      ))
+    }
+  ), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "16px", maxWidth: "720px", margin: "0 auto", width: "100%" } }, hasContraindications && /* @__PURE__ */ React.createElement("div", { style: { background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", padding: "10px 14px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", fontWeight: "bold", color: "#C62828", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" } }, "\u26A0 Contraindications / Precautions on file"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "4px" } }, client.contraindications.map((c) => /* @__PURE__ */ React.createElement("span", { key: c, style: { background: "#FEE2E2", color: "#C62828", border: "1px solid #FECACA", borderRadius: "8px", padding: "2px 8px", fontSize: "11px" } }, c)))), /* @__PURE__ */ React.createElement("div", { style: { background: C.white, border: `1px solid ${C.border}`, borderRadius: "8px", padding: "14px 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px" } }, [
+    ["Date of birth", client.dob],
+    ["Phone", client.phone],
+    ["Email", client.email],
+    ["Pressure preference", client.pressurePreference],
+    ["Treatment goals", client.treatmentGoals],
+    ["Areas to avoid", client.areasToAvoid],
+    ["Medications", client.medications],
+    ["Allergies", client.allergies]
+  ].filter(([, v]) => v).map(([label, value]) => /* @__PURE__ */ React.createElement("div", { key: label }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "9px", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.06em", color: C.muted } }, label), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "12px", color: C.text } }, value)))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", fontWeight: "bold", letterSpacing: "0.08em", textTransform: "uppercase", color: C.maroon, borderBottom: `1px solid ${C.border}`, paddingBottom: "6px", marginBottom: "10px" } }, "Session History (", clientSessions.length, ")"), clientSessions.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { color: C.muted, fontSize: "13px", textAlign: "center", padding: "30px", background: C.white, borderRadius: "8px", border: `1px solid ${C.border}` } }, "No sessions yet.", /* @__PURE__ */ React.createElement("div", { style: { marginTop: "10px" } }, /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: onNewSession,
+      style: { padding: "7px 18px", background: C.maroon, color: C.white, border: "none", borderRadius: "6px", cursor: "pointer", fontFamily: "inherit", fontSize: "12px" }
+    },
+    "Start first session"
+  ))) : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "6px" } }, clientSessions.map((session, idx) => {
+    var _a2, _b, _c;
+    const date = session.date ? new Date(session.date).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" }) : "\u2014";
+    const complaint = [(_b = (_a2 = session.subjective) == null ? void 0 : _a2.modifiers) == null ? void 0 : _b.join(" "), (_c = session.subjective) == null ? void 0 : _c.region].filter(Boolean).join(" \xB7 ");
+    return /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        key: session.id,
+        onClick: () => onOpenSession(session.id),
+        style: { background: C.white, border: `1px solid ${C.border}`, borderLeft: `4px solid ${C.maroon}`, borderRadius: "8px", padding: "10px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", transition: "all 0.15s" }
+      },
+      /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "bold", fontSize: "13px", color: C.text } }, "Session ", session.sessionNumber || clientSessions.length - idx, /* @__PURE__ */ React.createElement("span", { style: { fontWeight: "normal", color: C.muted, marginLeft: "8px" } }, date)), complaint && /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: C.muted, marginTop: "2px" } }, complaint)),
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: C.muted } }, session.updatedAt ? `Saved ${session.updatedAt}` : "Draft")
+    );
+  })))));
+}
+function ModifierChips({ groups, selected, onChange, accentColor }) {
+  const color = accentColor || C.S;
+  const toggle = (m) => selected.includes(m) ? onChange(selected.filter((x) => x !== m)) : onChange([...selected, m]);
+  if (!groups || groups.length === 0) return null;
+  return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "0", alignItems: "flex-start", flexWrap: "wrap" } }, groups.map(({ plane, terms }, i) => /* @__PURE__ */ React.createElement("div", { key: plane, style: { display: "flex", flexDirection: "column", gap: "4px", paddingLeft: i > 0 ? "10px" : 0, marginLeft: i > 0 ? "10px" : 0, borderLeft: i > 0 ? `1px dashed ${C.border}` : "none" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: "9px", fontWeight: "bold", letterSpacing: "0.07em", textTransform: "uppercase", color: C.muted } }, plane), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "4px" } }, terms.map((m) => {
+    const sel = selected.includes(m);
+    return /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        key: m,
+        onClick: () => toggle(m),
+        style: { padding: "3px 11px", border: `1px solid ${sel ? color : C.border}`, borderRadius: "12px", background: sel ? color : C.cream, color: sel ? C.white : C.muted, fontSize: "11px", cursor: "pointer", fontFamily: "inherit", fontWeight: sel ? "bold" : "normal", transition: "all 0.15s", whiteSpace: "nowrap" }
+      },
+      m
+    );
+  })))));
+}
+function ModifierPicker({ region, selected, onChange, accentColor }) {
+  var _a;
+  const groups = (_a = REGION_MODIFIERS[region]) != null ? _a : [];
+  if (groups.length === 0) return null;
+  return /* @__PURE__ */ React.createElement(ModifierChips, { groups, selected, onChange, accentColor });
+}
+function RegionHeading({ label, color }) {
+  return /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", fontWeight: "bold", letterSpacing: "0.1em", textTransform: "uppercase", color, borderBottom: `1px solid ${C.border}`, paddingBottom: "4px", marginBottom: "8px", display: "flex", alignItems: "center", gap: "8px" } }, /* @__PURE__ */ React.createElement("span", { style: { width: "20px", height: "1px", background: color, display: "inline-block", flexShrink: 0 } }), label, /* @__PURE__ */ React.createElement("span", { style: { flex: 1, height: "1px", background: C.border, display: "inline-block" } }));
+}
+function TechniquePicker({ options, selected, onChange, accentColor }) {
+  const [open, setOpen] = useState(false);
+  const color = accentColor || C.O;
+  const toggle = (opt) => selected.includes(opt) ? onChange(selected.filter((o) => o !== opt)) : onChange([...selected, opt]);
+  return /* @__PURE__ */ React.createElement("div", { style: { position: "relative" } }, /* @__PURE__ */ React.createElement("div", { onClick: () => setOpen((o) => !o), style: __spreadProps(__spreadValues({}, inputStyle), { cursor: "pointer", display: "flex", alignItems: "center", minHeight: "34px", flexWrap: "wrap", gap: "4px", padding: "4px 8px" }) }, selected.length === 0 ? /* @__PURE__ */ React.createElement("span", { style: { color: C.muted } }, "\u2014 select techniques \u2014") : selected.map((s) => /* @__PURE__ */ React.createElement("span", { key: s, style: { background: color, color: C.white, borderRadius: "10px", padding: "2px 8px", fontSize: "11px" } }, s)), /* @__PURE__ */ React.createElement("span", { style: { color: C.muted, fontSize: "10px", marginLeft: "auto", flexShrink: 0 } }, "\u25BE")), open && /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", zIndex: 100, top: "100%", left: 0, right: 0, background: C.white, border: `1px solid ${C.border}`, borderRadius: "6px", boxShadow: "0 4px 12px rgba(0,0,0,0.12)", maxHeight: "220px", overflowY: "auto" } }, options.map((opt) => /* @__PURE__ */ React.createElement("div", { key: opt, onClick: () => toggle(opt), style: { padding: "7px 12px", fontSize: "12px", cursor: "pointer", background: selected.includes(opt) ? `${color}18` : "transparent", color: selected.includes(opt) ? color : C.text, display: "flex", alignItems: "center", gap: "8px", borderBottom: `1px solid ${C.creamDark}` } }, /* @__PURE__ */ React.createElement("span", { style: { width: "14px", height: "14px", border: `1px solid ${selected.includes(opt) ? color : C.border}`, borderRadius: "3px", background: selected.includes(opt) ? color : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", color: C.white, flexShrink: 0 } }, selected.includes(opt) ? "\u2713" : ""), opt))));
+}
+function SubjectiveTab({ data, onChange }) {
+  var _a, _b;
+  const set = (field, value) => onChange(__spreadProps(__spreadValues({}, data), { [field]: value }));
+  const isRowFilled = (field) => {
+    var _a2;
+    if (field.type === "site") return !!(data.region || ((_a2 = data.modifiers) == null ? void 0 : _a2.length) > 0);
+    if (field.type === "double") return field.fields.some((f) => data[f.key]);
+    if (field.type === "multiDouble") return field.fields.some((f) => {
+      var _a3;
+      return ((_a3 = data[f.key]) != null ? _a3 : []).length > 0;
+    });
+    return !!data[field.key];
+  };
+  const summary = [
+    ((_a = data.modifiers) == null ? void 0 : _a.length) > 0 ? data.modifiers.join(" ") : null,
+    data.region || null,
+    data.character || null,
+    data.onset ? data.onset.split(" \u2014 ")[0].toLowerCase() : null,
+    data.severityWorst ? `${data.severityWorst}/10 at worst` : null
+  ].filter(Boolean).join(" \xB7 ");
+  return /* @__PURE__ */ React.createElement("div", { style: { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" } }, summary && /* @__PURE__ */ React.createElement("div", { style: { background: "#FDF2EC", border: `1px solid ${C.S}`, borderRadius: "6px", padding: "8px 12px", fontSize: "12px", color: C.S } }, /* @__PURE__ */ React.createElement("span", { style: { fontWeight: "bold", marginRight: "6px" } }, "S \u2014"), summary), SOCRATES_FIELDS.map((field) => {
+    var _a2, _b2, _c;
+    const filled = isRowFilled(field);
+    return /* @__PURE__ */ React.createElement("div", { key: field.key, style: { padding: "7px 12px", background: C.white, border: `1px solid ${filled ? C.S : C.border}`, borderLeft: `4px solid ${filled ? C.S : C.border}`, borderRadius: "6px", transition: "all 0.15s" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "10px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { width: "24px", height: "24px", borderRadius: "50%", background: filled ? C.S : C.creamDark, color: filled ? C.white : C.muted, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: "bold", flexShrink: 0, transition: "all 0.2s" } }, field.letter), /* @__PURE__ */ React.createElement("div", { style: { width: "130px", flexShrink: 0, fontSize: "12px", fontWeight: "bold", color: filled ? C.S : C.muted } }, field.label), field.type === "site" ? /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("select", { value: (_a2 = data.region) != null ? _a2 : "", onChange: (e) => onChange(__spreadProps(__spreadValues({}, data), { region: e.target.value, modifiers: [] })), style: inputStyle }, /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 select region \u2014"), field.regionField.options.map((o) => /* @__PURE__ */ React.createElement("option", { key: o }, o)))) : field.type === "single" ? /* @__PURE__ */ React.createElement("select", { value: (_b2 = data[field.key]) != null ? _b2 : "", onChange: (e) => set(field.key, e.target.value), style: __spreadProps(__spreadValues({}, inputStyle), { flex: 1 }) }, /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 select \u2014"), field.options.map((o) => /* @__PURE__ */ React.createElement("option", { key: o }, o))) : field.type === "multiDouble" ? /* @__PURE__ */ React.createElement("div", { style: { flex: 1, display: "flex", gap: "12px" } }, field.fields.map((f) => {
+      var _a3;
+      const selected = (_a3 = data[f.key]) != null ? _a3 : [];
+      const toggle = (opt) => set(f.key, selected.includes(opt) ? selected.filter((x) => x !== opt) : [...selected, opt]);
+      return /* @__PURE__ */ React.createElement("div", { key: f.key, style: { flex: 1 } }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, f.label), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" } }, f.options.map((opt) => {
+        const sel = selected.includes(opt);
+        return /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            key: opt,
+            onClick: () => toggle(opt),
+            style: { padding: "3px 10px", border: `1px solid ${sel ? C.S : C.border}`, borderRadius: "12px", background: sel ? C.S : C.cream, color: sel ? C.white : C.muted, fontSize: "11px", cursor: "pointer", fontFamily: "inherit", fontWeight: sel ? "bold" : "normal", transition: "all 0.15s", whiteSpace: "nowrap" }
+          },
+          opt
+        );
+      })));
+    })) : /* @__PURE__ */ React.createElement("div", { style: { flex: 1, display: "flex", gap: "8px" } }, field.fields.map((f) => {
+      var _a3;
+      return /* @__PURE__ */ React.createElement("div", { key: f.key, style: { flex: 1 } }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, f.label), /* @__PURE__ */ React.createElement("select", { value: (_a3 = data[f.key]) != null ? _a3 : "", onChange: (e) => set(f.key, e.target.value), style: inputStyle }, /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 select \u2014"), f.options.map((o) => /* @__PURE__ */ React.createElement("option", { key: o }, o))));
+    }))), field.type === "site" && /* @__PURE__ */ React.createElement("div", { style: { marginTop: "8px", paddingTop: "8px", borderTop: `1px solid ${C.creamDark}` } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", fontWeight: "bold", letterSpacing: "0.08em", textTransform: "uppercase", color: C.muted, marginBottom: "6px" } }, "Localisation"), REGION_MODIFIERS[data.region] ? /* @__PURE__ */ React.createElement(ModifierChips, { groups: REGION_MODIFIERS[data.region], selected: (_c = data.modifiers) != null ? _c : [], onChange: (val) => onChange(__spreadProps(__spreadValues({}, data), { modifiers: val })), accentColor: C.S }) : /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: C.muted, fontStyle: "italic" } }, data.region ? "No localisation available for this region." : "Select a region to see localisation options.")));
+  }), /* @__PURE__ */ React.createElement("div", { style: { padding: "10px 12px", background: C.white, border: `1px solid ${data.narrative ? C.S : C.border}`, borderLeft: `4px solid ${data.narrative ? C.S : C.border}`, borderRadius: "6px", transition: "all 0.15s" } }, /* @__PURE__ */ React.createElement("label", { style: labelStyle(data.narrative ? C.S : C.muted) }, "Patient story \u2014 in their own words"), /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      rows: 4,
+      placeholder: "Tell the story of the complaint \u2014 how it started, how it's changed, what the patient says about it in their own words\u2026",
+      value: (_b = data.narrative) != null ? _b : "",
+      onChange: (e) => set("narrative", e.target.value),
+      style: __spreadProps(__spreadValues({}, inputStyle), { resize: "vertical", lineHeight: "1.6" })
+    }
+  )));
+}
+const BODY_ZONES = [
+  // Head
+  { id: "cranial", label: "Cranial", x: 38, y: 2, w: 24, h: 18 },
+  // Neck
+  { id: "cervical", label: "Cervical", x: 42, y: 20, w: 16, h: 12 },
+  // Shoulders
+  { id: "shoulder-l", label: "Shoulder (L)", x: 20, y: 30, w: 18, h: 16 },
+  { id: "shoulder-r", label: "Shoulder (R)", x: 62, y: 30, w: 18, h: 16 },
+  // Thoracic
+  { id: "thoracic", label: "Thoracic", x: 38, y: 32, w: 24, h: 22 },
+  // Upper arms
+  { id: "upper-arm-l", label: "Upper arm (L)", x: 18, y: 46, w: 14, h: 18 },
+  { id: "upper-arm-r", label: "Upper arm (R)", x: 68, y: 46, w: 14, h: 18 },
+  // Elbows
+  { id: "elbow-l", label: "Elbow & Forearm (L)", x: 14, y: 64, w: 14, h: 20 },
+  { id: "elbow-r", label: "Elbow & Forearm (R)", x: 72, y: 64, w: 14, h: 20 },
+  // Lumbar/sacral
+  { id: "lumbar", label: "Lumbar / Sacral", x: 38, y: 54, w: 24, h: 22 },
+  // Wrists/hands
+  { id: "wrist-l", label: "Wrist & Hand (L)", x: 10, y: 84, w: 14, h: 20 },
+  { id: "wrist-r", label: "Wrist & Hand (R)", x: 76, y: 84, w: 14, h: 20 },
+  // Hips
+  { id: "hip-l", label: "Hip (L)", x: 32, y: 76, w: 16, h: 18 },
+  { id: "hip-r", label: "Hip (R)", x: 52, y: 76, w: 16, h: 18 },
+  // Thighs
+  { id: "thigh-l", label: "Thigh (L)", x: 33, y: 94, w: 14, h: 26 },
+  { id: "thigh-r", label: "Thigh (R)", x: 53, y: 94, w: 14, h: 26 },
+  // Knees
+  { id: "knee-l", label: "Knee (L)", x: 33, y: 120, w: 14, h: 14 },
+  { id: "knee-r", label: "Knee (R)", x: 53, y: 120, w: 14, h: 14 },
+  // Lower legs
+  { id: "lower-leg-l", label: "Lower Leg & Calf (L)", x: 33, y: 134, w: 13, h: 26 },
+  { id: "lower-leg-r", label: "Lower Leg & Calf (R)", x: 54, y: 134, w: 13, h: 26 },
+  // Ankles/feet
+  { id: "ankle-l", label: "Ankle & Foot (L)", x: 30, y: 160, w: 16, h: 14 },
+  { id: "ankle-r", label: "Ankle & Foot (R)", x: 54, y: 160, w: 16, h: 14 }
+];
+const LAYER_COLORS = { S: C.S, O: C.O };
+const LAYER_LABELS = { S: "Subjective", O: "Objective" };
+function FigureSVG({ annotations, onZoneClick, activeLayer, scale = 1 }) {
+  const W = 100 * scale;
+  const H = 180 * scale;
+  const s = scale;
+  const annotationsByZone = (annotations != null ? annotations : []).reduce((acc, a) => {
+    if (!acc[a.zoneId]) acc[a.zoneId] = [];
+    acc[a.zoneId].push(a);
+    return acc;
+  }, {});
+  return /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 100 180", width: W, height: H, style: { display: "block" } }, /* @__PURE__ */ React.createElement("ellipse", { cx: "50", cy: "10", rx: "11", ry: "9", fill: "#F0E8D8", stroke: "#C9973A", strokeWidth: "0.8" }), /* @__PURE__ */ React.createElement("rect", { x: "45", y: "19", width: "10", height: "8", rx: "2", fill: "#F0E8D8", stroke: "#C9973A", strokeWidth: "0.8" }), /* @__PURE__ */ React.createElement("path", { d: "M32 27 Q28 28 22 32 L18 80 Q28 84 50 84 Q72 84 82 80 L78 32 Q72 28 68 27 Z", fill: "#FAF6EF", stroke: "#C9973A", strokeWidth: "0.8" }), /* @__PURE__ */ React.createElement("path", { d: "M22 32 Q16 38 14 50 L12 72 Q16 74 20 72 L22 50 Z", fill: "#FAF6EF", stroke: "#C9973A", strokeWidth: "0.8" }), /* @__PURE__ */ React.createElement("path", { d: "M12 72 Q10 80 10 90 L14 92 Q17 82 20 72 Z", fill: "#FAF6EF", stroke: "#C9973A", strokeWidth: "0.8" }), /* @__PURE__ */ React.createElement("ellipse", { cx: "12", cy: "96", rx: "5", ry: "7", fill: "#FAF6EF", stroke: "#C9973A", strokeWidth: "0.8" }), /* @__PURE__ */ React.createElement("path", { d: "M78 32 Q84 38 86 50 L88 72 Q84 74 80 72 L78 50 Z", fill: "#FAF6EF", stroke: "#C9973A", strokeWidth: "0.8" }), /* @__PURE__ */ React.createElement("path", { d: "M88 72 Q90 80 90 90 L86 92 Q83 82 80 72 Z", fill: "#FAF6EF", stroke: "#C9973A", strokeWidth: "0.8" }), /* @__PURE__ */ React.createElement("ellipse", { cx: "88", cy: "96", rx: "5", ry: "7", fill: "#FAF6EF", stroke: "#C9973A", strokeWidth: "0.8" }), /* @__PURE__ */ React.createElement("path", { d: "M36 84 L32 134 Q34 136 40 136 L44 84 Z", fill: "#FAF6EF", stroke: "#C9973A", strokeWidth: "0.8" }), /* @__PURE__ */ React.createElement("path", { d: "M56 84 L56 136 Q62 136 64 134 L68 84 Z", fill: "#FAF6EF", stroke: "#C9973A", strokeWidth: "0.8" }), /* @__PURE__ */ React.createElement("path", { d: "M32 134 Q31 152 32 162 L40 162 L40 136 Q34 136 32 134 Z", fill: "#FAF6EF", stroke: "#C9973A", strokeWidth: "0.8" }), /* @__PURE__ */ React.createElement("path", { d: "M60 136 L60 162 L68 162 Q69 152 68 134 Q66 136 60 136 Z", fill: "#FAF6EF", stroke: "#C9973A", strokeWidth: "0.8" }), /* @__PURE__ */ React.createElement("path", { d: "M30 162 Q28 168 30 172 L42 172 L40 162 Z", fill: "#FAF6EF", stroke: "#C9973A", strokeWidth: "0.8" }), /* @__PURE__ */ React.createElement("path", { d: "M60 162 L58 172 L70 172 Q72 168 70 162 Z", fill: "#FAF6EF", stroke: "#C9973A", strokeWidth: "0.8" }), BODY_ZONES.map((zone) => {
+    var _a;
+    const zoneAnnotations = (_a = annotationsByZone[zone.id]) != null ? _a : [];
+    return /* @__PURE__ */ React.createElement(
+      "g",
+      {
+        key: zone.id,
+        onClick: () => onZoneClick && onZoneClick(zone),
+        style: { cursor: onZoneClick ? "pointer" : "default" }
+      },
+      /* @__PURE__ */ React.createElement(
+        "rect",
+        {
+          x: zone.x,
+          y: zone.y,
+          width: zone.w,
+          height: zone.h,
+          rx: "3",
+          fill: "transparent",
+          stroke: zoneAnnotations.length > 0 ? "rgba(107,31,42,0.3)" : "transparent",
+          strokeWidth: "0.5",
+          style: { transition: "all 0.15s" },
+          onMouseEnter: (e) => {
+            e.target.setAttribute("fill", "rgba(201,151,58,0.15)");
+          },
+          onMouseLeave: (e) => {
+            e.target.setAttribute("fill", "transparent");
+          }
+        }
+      ),
+      zoneAnnotations.map((ann, i) => {
+        var _a2;
+        const cx = zone.x + zone.w / 2 + (i - (zoneAnnotations.length - 1) / 2) * 6;
+        const cy = zone.y + 4;
+        return /* @__PURE__ */ React.createElement("g", { key: ann.id }, /* @__PURE__ */ React.createElement("circle", { cx, cy, r: "4", fill: (_a2 = LAYER_COLORS[ann.layer]) != null ? _a2 : C.maroon }), /* @__PURE__ */ React.createElement("text", { x: cx, y: cy + 1.5, textAnchor: "middle", fontSize: "4", fill: "white", fontWeight: "bold" }, ann.number));
+      })
+    );
+  }));
+}
+function BodyMapWidget({ annotations, onUpdate, compact = false }) {
+  const [expanded, setExpanded] = useState(false);
+  const [activeLayer, setActiveLayer] = useState("S");
+  const [selectedZone, setSelectedZone] = useState(null);
+  const [noteText, setNoteText] = useState("");
+  const anns = annotations != null ? annotations : [];
+  const handleZoneClick = (zone) => {
+    setSelectedZone(zone);
+    setNoteText("");
+  };
+  const addAnnotation = () => {
+    if (!selectedZone) return;
+    const number = anns.length + 1;
+    const newAnn = {
+      id: genId(),
+      zoneId: selectedZone.id,
+      zoneLabel: selectedZone.label,
+      layer: activeLayer,
+      number,
+      note: noteText
+    };
+    onUpdate([...anns, newAnn]);
+    setSelectedZone(null);
+    setNoteText("");
+  };
+  const removeAnnotation = (id) => {
+    const updated = anns.filter((a) => a.id !== id);
+    const renumbered = updated.map((a, i) => __spreadProps(__spreadValues({}, a), { number: i + 1 }));
+    onUpdate(renumbered);
+  };
+  if (compact && !expanded) {
+    return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "6px" } }, /* @__PURE__ */ React.createElement("div", { style: { background: C.cream, border: `1px solid ${C.border}`, borderRadius: "8px", padding: "6px", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" } }, /* @__PURE__ */ React.createElement(FigureSVG, { annotations: anns, scale: 1.6 }), anns.length > 0 && /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", color: C.muted, textAlign: "center" } }, anns.length, " annotation", anns.length !== 1 ? "s" : "")), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => setExpanded(true),
+        style: { padding: "4px", background: C.O, color: C.white, border: "none", borderRadius: "5px", cursor: "pointer", fontFamily: "inherit", fontSize: "10px", letterSpacing: "0.04em" }
+      },
+      "Annotate \u2197"
+    ));
+  }
+  return /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { background: C.white, borderRadius: "10px", padding: "20px", maxWidth: "700px", width: "95%", maxHeight: "90vh", overflow: "hidden", display: "flex", flexDirection: "column", gap: "14px", fontFamily: "'Georgia', serif" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "bold", fontSize: "14px", color: C.maroon } }, "Body Map"), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => setExpanded(false),
+      style: { background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: C.muted, lineHeight: 1 }
+    },
+    "\xD7"
+  )), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: "11px", color: C.muted } }, "Layer:"), Object.entries(LAYER_LABELS).map(([key, label]) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key,
+      onClick: () => setActiveLayer(key),
+      style: { padding: "4px 14px", border: `1px solid ${activeLayer === key ? LAYER_COLORS[key] : C.border}`, borderRadius: "10px", background: activeLayer === key ? LAYER_COLORS[key] : C.cream, color: activeLayer === key ? C.white : C.muted, cursor: "pointer", fontFamily: "inherit", fontSize: "11px", fontWeight: activeLayer === key ? "bold" : "normal" }
+    },
+    key,
+    " \u2014 ",
+    label
+  )), /* @__PURE__ */ React.createElement("span", { style: { fontSize: "10px", color: C.muted, fontStyle: "italic", marginLeft: "4px" } }, "Click a zone on the figure to add an annotation")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "16px", flex: 1, overflow: "hidden" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(FigureSVG, { annotations: anns, onZoneClick: handleZoneClick, activeLayer, scale: 2.2 })), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, display: "flex", flexDirection: "column", gap: "10px", overflow: "hidden" } }, selectedZone ? /* @__PURE__ */ React.createElement("div", { style: { background: `${LAYER_COLORS[activeLayer]}10`, border: `1px solid ${LAYER_COLORS[activeLayer]}`, borderRadius: "8px", padding: "12px", display: "flex", flexDirection: "column", gap: "8px", flexShrink: 0 } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "bold", fontSize: "12px", color: LAYER_COLORS[activeLayer] } }, activeLayer, " \u2014 ", selectedZone.label), /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      rows: 2,
+      placeholder: activeLayer === "S" ? "Describe the symptom \u2014 e.g. sharp pain on movement\u2026" : "Describe the finding \u2014 e.g. restricted ROM, tender on palpation\u2026",
+      value: noteText,
+      onChange: (e) => setNoteText(e.target.value),
+      style: __spreadProps(__spreadValues({}, inputStyle), { resize: "none", lineHeight: "1.5" }),
+      autoFocus: true
+    }
+  ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px" } }, /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: addAnnotation,
+      style: { flex: 1, padding: "7px", background: LAYER_COLORS[activeLayer], color: C.white, border: "none", borderRadius: "6px", cursor: "pointer", fontFamily: "inherit", fontSize: "12px", fontWeight: "bold" }
+    },
+    "+ Add annotation #",
+    anns.length + 1
+  ), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => setSelectedZone(null),
+      style: { padding: "7px 12px", background: C.creamDark, color: C.muted, border: `1px solid ${C.border}`, borderRadius: "6px", cursor: "pointer", fontFamily: "inherit", fontSize: "12px" }
+    },
+    "Cancel"
+  ))) : /* @__PURE__ */ React.createElement("div", { style: { background: C.cream, border: `1px solid ${C.border}`, borderRadius: "8px", padding: "10px 12px", fontSize: "11px", color: C.muted, fontStyle: "italic", flexShrink: 0 } }, "Click any zone on the figure to add a ", activeLayer === "S" ? "symptom" : "finding", " annotation."), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px" } }, anns.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontSize: "12px", color: C.muted, textAlign: "center", paddingTop: "20px" } }, "No annotations yet.") : anns.map((ann) => {
+    var _a, _b, _c;
+    return /* @__PURE__ */ React.createElement("div", { key: ann.id, style: { display: "flex", gap: "10px", alignItems: "flex-start", padding: "8px 10px", background: C.white, border: `1px solid ${C.border}`, borderLeft: `3px solid ${(_a = LAYER_COLORS[ann.layer]) != null ? _a : C.muted}`, borderRadius: "6px" } }, /* @__PURE__ */ React.createElement("div", { style: { width: "20px", height: "20px", borderRadius: "50%", background: (_b = LAYER_COLORS[ann.layer]) != null ? _b : C.muted, color: C.white, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: "bold", flexShrink: 0 } }, ann.number), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", fontWeight: "bold", color: (_c = LAYER_COLORS[ann.layer]) != null ? _c : C.muted, textTransform: "uppercase", letterSpacing: "0.05em" } }, ann.layer, " \u2014 ", ann.zoneLabel), ann.note && /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: C.text, marginTop: "2px" } }, ann.note)), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => removeAnnotation(ann.id),
+        style: { background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: "16px", lineHeight: 1, padding: "0 2px", flexShrink: 0 }
+      },
+      "\xD7"
+    ));
+  }))))));
+}
+function ObjectiveTab({ findings, onUpdateFinding, specialTests, onUpdateSpecialTests, bodyAnnotations, onUpdateBodyAnnotations }) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+  const [selectedRegion, setSelectedRegion] = useState("Shoulder");
+  const [activeMode, setActiveMode] = useState("Movement / ROM");
+  const [selectedTestId, setSelectedTestId] = useState(null);
+  const regionConfig = (_a = OBJECTIVE_CONFIG[selectedRegion]) != null ? _a : FALLBACK_OBJECTIVE;
+  const tests = activeMode !== "Special Tests" ? (_b = regionConfig[activeMode]) != null ? _b : [] : [];
+  const resolvedTestId = (_d = selectedTestId != null ? selectedTestId : (_c = tests[0]) == null ? void 0 : _c.id) != null ? _d : null;
+  const selectedTest = (_f = (_e = tests.find((t) => t.id === resolvedTestId)) != null ? _e : tests[0]) != null ? _f : null;
+  const entryKey = selectedTest ? `${selectedRegion}::${selectedTest.id}` : "";
+  const currentFinding = (_g = findings[entryKey]) != null ? _g : { modifiers: [] };
+  const changeRegion = (r) => {
+    setSelectedRegion(r);
+    setSelectedTestId(null);
+  };
+  const changeMode = (m) => {
+    setActiveMode(m);
+    setSelectedTestId(null);
+  };
+  const update = (field, value) => {
+    if (!selectedTest) return;
+    onUpdateFinding(entryKey, { region: selectedRegion, mode: activeMode, label: selectedTest.label, [field]: value });
+  };
+  const findingsByRegion = Object.entries(findings).reduce((acc, [key, val]) => {
+    const r = val.region || "Other";
+    if (!acc[r]) acc[r] = [];
+    acc[r].push([key, val]);
+    return acc;
+  }, {});
+  return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flex: 1, overflow: "hidden" } }, /* @__PURE__ */ React.createElement("div", { style: { width: "200px", flexShrink: 0, borderRight: `1px solid ${C.border}`, paddingRight: "12px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", fontWeight: "bold", letterSpacing: "0.08em", textTransform: "uppercase", color: C.O } }, "Region"), /* @__PURE__ */ React.createElement("select", { value: selectedRegion, onChange: (e) => changeRegion(e.target.value), style: __spreadProps(__spreadValues({}, inputStyle), { fontWeight: "bold", color: C.O, borderColor: C.O }) }, CANONICAL_REGIONS.map((r) => /* @__PURE__ */ React.createElement("option", { key: r }, r))), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", fontWeight: "bold", letterSpacing: "0.08em", textTransform: "uppercase", color: C.O } }, "Body Map"), /* @__PURE__ */ React.createElement(BodyMapWidget, { annotations: bodyAnnotations, onUpdate: onUpdateBodyAnnotations, compact: true }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", fontWeight: "bold", letterSpacing: "0.08em", textTransform: "uppercase", color: C.O } }, "Findings log"), Object.keys(findings).length === 0 && specialTests.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: C.muted } }, "No findings yet.") : /* @__PURE__ */ React.createElement(React.Fragment, null, Object.entries(findingsByRegion).map(([region, entries]) => /* @__PURE__ */ React.createElement("div", { key: region }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "9px", color: C.gold, fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" } }, region), entries.map(([key, val]) => {
+    var _a2;
+    return /* @__PURE__ */ React.createElement("div", { key, style: { padding: "3px 0", borderBottom: `1px solid ${C.border}` } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: C.text } }, val.label), ((_a2 = val.modifiers) == null ? void 0 : _a2.length) > 0 && /* @__PURE__ */ React.createElement("div", { style: { fontSize: "9px", color: C.O } }, val.modifiers.join(" \xB7 ")), val.result && /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", color: C.muted } }, val.result), val.range != null && /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", color: C.muted } }, "Range: ", val.range, "/5"));
+  }))), specialTests.length > 0 && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "9px", color: C.gold, fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" } }, "Special Tests"), specialTests.map((t) => /* @__PURE__ */ React.createElement("div", { key: t.name, style: { padding: "3px 0", borderBottom: `1px solid ${C.border}`, fontSize: "11px", color: C.text } }, t.name))))), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, paddingLeft: "14px", display: "flex", flexDirection: "column", overflow: "hidden" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "5px", marginBottom: "10px", flexWrap: "wrap", flexShrink: 0 } }, OBJECTIVE_MODE_TABS.map((tab) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: tab,
+      onClick: () => changeMode(tab),
+      style: { padding: "5px 11px", border: `1px solid ${activeMode === tab ? C.O : C.border}`, borderRadius: "6px", background: activeMode === tab ? C.O : C.white, color: activeMode === tab ? C.white : C.text, cursor: "pointer", fontSize: "11px", fontFamily: "inherit", transition: "all 0.15s" }
+    },
+    tab
+  ))), activeMode === "Special Tests" ? /* @__PURE__ */ React.createElement(SpecialTestsPanel, { region: selectedRegion, specialTests, onUpdateSpecialTests }) : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flex: 1, overflow: "hidden", gap: "12px" } }, /* @__PURE__ */ React.createElement("div", { style: { width: "50%", overflowY: "auto" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", fontWeight: "bold", letterSpacing: "0.08em", textTransform: "uppercase", color: C.O, marginBottom: "6px" } }, selectedRegion, " \u2014 ", activeMode), tests.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontSize: "12px", color: C.muted, fontStyle: "italic" } }, "No tests configured for this region / mode.") : /* @__PURE__ */ React.createElement("ul", { style: { listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "4px" } }, tests.map((test) => {
+    const key = `${selectedRegion}::${test.id}`;
+    const hasData = !!findings[key];
+    const isSelected = test.id === resolvedTestId;
+    return /* @__PURE__ */ React.createElement(
+      "li",
+      {
+        key: test.id,
+        onClick: () => setSelectedTestId(test.id),
+        style: { border: `1px solid ${isSelected ? C.O : C.border}`, borderLeft: `4px solid ${isSelected ? C.O : hasData ? C.gold : C.border}`, borderRadius: "6px", padding: "8px 10px", background: isSelected ? "#EAF2F5" : C.white, cursor: "pointer", fontSize: "12px", display: "flex", justifyContent: "space-between", alignItems: "center", transition: "all 0.15s" }
+      },
+      /* @__PURE__ */ React.createElement("span", null, test.label),
+      hasData && /* @__PURE__ */ React.createElement("span", { style: { fontSize: "9px", background: C.gold, color: C.white, borderRadius: "10px", padding: "1px 7px" } }, "recorded")
+    );
+  }))), /* @__PURE__ */ React.createElement("div", { style: { width: "50%", borderLeft: `1px solid ${C.border}`, paddingLeft: "12px", overflowY: "auto" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", fontWeight: "bold", letterSpacing: "0.08em", textTransform: "uppercase", color: C.O, marginBottom: "6px" } }, "Finding detail"), selectedTest ? /* @__PURE__ */ React.createElement("div", { style: { border: `1px solid ${C.border}`, borderRadius: "8px", background: C.white, padding: "12px", display: "flex", flexDirection: "column", gap: "10px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "bold", fontSize: "13px", paddingBottom: "7px", borderBottom: `1px solid ${C.creamDark}`, color: C.O } }, selectedTest.label), REGION_MODIFIERS[selectedRegion] && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Localise finding"), /* @__PURE__ */ React.createElement(ModifierPicker, { region: selectedRegion, selected: (_h = currentFinding.modifiers) != null ? _h : [], onChange: (val) => update("modifiers", val), accentColor: C.O })), activeMode === "Movement / ROM" ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { style: { background: C.cream, borderRadius: "6px", padding: "10px 12px", border: `1px solid ${C.border}` } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", fontWeight: "bold", letterSpacing: "0.08em", textTransform: "uppercase", color: C.O, marginBottom: "8px" } }, "Range"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "4px", marginBottom: "6px" } }, [0, 1, 2, 3, 4, 5].map((n) => {
+    const sel = currentFinding.range === n;
+    return /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        key: n,
+        onClick: () => update("range", sel ? null : n),
+        style: { flex: 1, padding: "6px 0", border: `1px solid ${sel ? C.O : C.border}`, borderRadius: "5px", background: sel ? C.O : C.white, color: sel ? C.white : C.muted, fontFamily: "inherit", fontSize: "13px", fontWeight: "bold", cursor: "pointer", transition: "all 0.15s" }
+      },
+      n
+    );
+  })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: "9px", color: C.muted, marginBottom: "8px" } }, /* @__PURE__ */ React.createElement("span", null, "No movement"), /* @__PURE__ */ React.createElement("span", null, "Full range")), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => update("exceedsNormal", !currentFinding.exceedsNormal),
+      style: { padding: "3px 10px", border: `1px solid ${currentFinding.exceedsNormal ? C.O : C.border}`, borderRadius: "10px", background: currentFinding.exceedsNormal ? C.O : C.cream, color: currentFinding.exceedsNormal ? C.white : C.muted, fontSize: "11px", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }
+    },
+    "Exceeds normal range"
+  ), /* @__PURE__ */ React.createElement("div", { style: { marginTop: "10px" } }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "End-feel"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" } }, [
+    { label: "Soft", hint: "Gradual, yielding \u2014 muscular" },
+    { label: "Firm", hint: "Springy, elastic \u2014 capsular" },
+    { label: "Hard", hint: "Abrupt, bony block" },
+    { label: "Spasm", hint: "Sudden muscular guarding" },
+    { label: "Empty", hint: "Pain stops movement before tissue resistance" },
+    { label: "N/A", hint: "Not assessed" }
+  ].map(({ label, hint }) => {
+    const sel = currentFinding.endFeel === label;
+    const isEmpty = label === "Empty";
+    return /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        key: label,
+        onClick: () => update("endFeel", sel ? null : label),
+        title: hint,
+        style: { padding: "3px 10px", border: `1px solid ${sel ? isEmpty ? "#C62828" : C.O : C.border}`, borderRadius: "10px", background: sel ? isEmpty ? "#C62828" : C.O : C.cream, color: sel ? C.white : C.muted, fontSize: "11px", cursor: "pointer", fontFamily: "inherit", fontWeight: sel ? "bold" : "normal", transition: "all 0.15s" }
+      },
+      label
+    );
+  })), currentFinding.endFeel === "Empty" && /* @__PURE__ */ React.createElement("div", { style: { marginTop: "6px", fontSize: "10px", color: "#C62828", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "5px", padding: "5px 8px" } }, "\u26A0 Empty end-feel \u2014 pain stops movement before tissue resistance. Do not push further. Consider flagging for investigation."))), /* @__PURE__ */ React.createElement("div", { style: { background: C.cream, borderRadius: "6px", padding: "10px 12px", border: `1px solid ${C.border}` } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", fontWeight: "bold", letterSpacing: "0.08em", textTransform: "uppercase", color: C.O, marginBottom: "8px" } }, "Quality"), /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Pain (0\u201310)"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "3px", marginBottom: "10px" } }, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
+    const sel = currentFinding.painScore === n;
+    const bg = sel ? n <= 3 ? "#2E7D32" : n <= 6 ? "#F57C00" : "#C62828" : C.white;
+    return /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        key: n,
+        onClick: () => update("painScore", sel ? null : n),
+        style: { flex: 1, padding: "5px 0", border: `1px solid ${sel ? bg : C.border}`, borderRadius: "4px", background: sel ? bg : C.white, color: sel ? C.white : C.muted, fontFamily: "inherit", fontSize: "11px", fontWeight: "bold", cursor: "pointer", transition: "all 0.15s" }
+      },
+      n
+    );
+  })), /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Movement descriptors"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "4px" } }, ["Cheats", "Not smooth", "Asymmetrical"].map((desc) => {
+    var _a2;
+    const sel = ((_a2 = currentFinding.qualityDescriptors) != null ? _a2 : []).includes(desc);
+    return /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        key: desc,
+        onClick: () => {
+          var _a3;
+          const cur = (_a3 = currentFinding.qualityDescriptors) != null ? _a3 : [];
+          update("qualityDescriptors", sel ? cur.filter((x) => x !== desc) : [...cur, desc]);
+        },
+        style: { padding: "3px 12px", border: `1px solid ${sel ? C.O : C.border}`, borderRadius: "12px", background: sel ? C.O : C.white, color: sel ? C.white : C.muted, fontSize: "11px", cursor: "pointer", fontFamily: "inherit", fontWeight: sel ? "bold" : "normal", transition: "all 0.15s" }
+      },
+      desc
+    );
+  })))) : /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Finding"), /* @__PURE__ */ React.createElement("select", { value: (_i = currentFinding.result) != null ? _i : "", onChange: (e) => update("result", e.target.value), style: inputStyle }, /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 select \u2014"), selectedTest.results.map((o) => /* @__PURE__ */ React.createElement("option", { key: o }, o)))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Clinical notes"), /* @__PURE__ */ React.createElement("textarea", { rows: 2, placeholder: "Additional observations\u2026", value: (_j = currentFinding.notes) != null ? _j : "", onChange: (e) => update("notes", e.target.value), style: __spreadProps(__spreadValues({}, inputStyle), { resize: "vertical", lineHeight: "1.5" }) }))) : /* @__PURE__ */ React.createElement("div", { style: { color: C.muted, fontSize: "12px" } }, "Select a test from the list.")))));
+}
+function ResultButton({ value, option, onChange }) {
+  const selected = value === option;
+  const optionColor = option === "+" ? "#2E7D32" : option === "\u2212" ? "#C62828" : C.muted;
+  return /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => onChange(selected ? "" : option),
+      style: { flex: 1, padding: "5px 4px", border: `1px solid ${selected ? optionColor : C.border}`, borderRadius: "5px", background: selected ? optionColor : C.cream, color: selected ? C.white : C.muted, fontFamily: "inherit", fontSize: "13px", fontWeight: "bold", cursor: "pointer", transition: "all 0.15s" }
+    },
+    option
+  );
+}
+function SpecialTestCard({ testName, data, onChange, onRemove }) {
+  var _a;
+  const set = (field, val) => onChange(__spreadProps(__spreadValues({}, data), { [field]: val }));
+  return /* @__PURE__ */ React.createElement("div", { style: { background: C.white, border: `1px solid ${C.border}`, borderLeft: `4px solid ${C.O}`, borderRadius: "8px", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "10px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "bold", fontSize: "13px", color: C.O } }, testName), /* @__PURE__ */ React.createElement("button", { onClick: onRemove, style: { background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: "18px", lineHeight: 1, padding: "0 4px" } }, "\xD7")), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "50px 1fr 1fr", gap: "6px", alignItems: "center" } }, /* @__PURE__ */ React.createElement("div", null), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.08em", color: C.muted, textAlign: "center" } }, "Before"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.08em", color: C.muted, textAlign: "center" } }, "After"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: C.muted, fontWeight: "bold" } }, "Left"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "4px" } }, TEST_RESULT_OPTIONS.map((opt) => {
+    var _a2;
+    return /* @__PURE__ */ React.createElement(ResultButton, { key: opt, option: opt, value: (_a2 = data.beforeL) != null ? _a2 : "", onChange: (val) => set("beforeL", val) });
+  })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "4px" } }, TEST_RESULT_OPTIONS.map((opt) => {
+    var _a2;
+    return /* @__PURE__ */ React.createElement(ResultButton, { key: opt, option: opt, value: (_a2 = data.afterL) != null ? _a2 : "", onChange: (val) => set("afterL", val) });
+  })), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: C.muted, fontWeight: "bold" } }, "Right"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "4px" } }, TEST_RESULT_OPTIONS.map((opt) => {
+    var _a2;
+    return /* @__PURE__ */ React.createElement(ResultButton, { key: opt, option: opt, value: (_a2 = data.beforeR) != null ? _a2 : "", onChange: (val) => set("beforeR", val) });
+  })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "4px" } }, TEST_RESULT_OPTIONS.map((opt) => {
+    var _a2;
+    return /* @__PURE__ */ React.createElement(ResultButton, { key: opt, option: opt, value: (_a2 = data.afterR) != null ? _a2 : "", onChange: (val) => set("afterR", val) });
+  }))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Notes"), /* @__PURE__ */ React.createElement("textarea", { rows: 2, value: (_a = data.notes) != null ? _a : "", onChange: (e) => set("notes", e.target.value), style: __spreadProps(__spreadValues({}, inputStyle), { resize: "vertical", lineHeight: "1.5" }) })));
+}
+function SpecialTestsPanel({ region, specialTests, onUpdateSpecialTests }) {
+  var _a;
+  const [selectedTest, setSelectedTest] = useState("");
+  const tests = specialTests != null ? specialTests : [];
+  const available = ((_a = SPECIAL_TESTS_BY_REGION[region]) != null ? _a : []).filter((t) => !tests.find((e) => e.name === t));
+  const addTest = () => {
+    if (!selectedTest) return;
+    onUpdateSpecialTests([...tests, { name: selectedTest, region, beforeL: "", beforeR: "", afterL: "", afterR: "", notes: "" }]);
+    setSelectedTest("");
+  };
+  const updateTest = (name, updated) => onUpdateSpecialTests(tests.map((t) => t.name === name ? __spreadValues(__spreadValues({}, t), updated) : t));
+  const removeTest = (name) => onUpdateSpecialTests(tests.filter((t) => t.name !== name));
+  const byRegion = tests.reduce((acc, t) => {
+    const r = t.region || "Other";
+    if (!acc[r]) acc[r] = [];
+    acc[r].push(t);
+    return acc;
+  }, {});
+  return /* @__PURE__ */ React.createElement("div", { style: { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" } }, /* @__PURE__ */ React.createElement("div", { style: { background: "#EAF2F5", border: `1px solid ${C.O}`, borderRadius: "6px", padding: "8px 12px", fontSize: "11px", color: C.O, lineHeight: "1.6" } }, /* @__PURE__ */ React.createElement("strong", null, "Scope note:"), " Special tests are assessment tools to inform clinical reasoning, not to diagnose. Document results as observations only."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px", alignItems: "flex-end", padding: "10px 12px", background: C.white, border: `1px solid ${C.border}`, borderRadius: "8px", flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", fontWeight: "bold", letterSpacing: "0.08em", textTransform: "uppercase", color: C.O, alignSelf: "center", whiteSpace: "nowrap" } }, "Add test"), /* @__PURE__ */ React.createElement("div", { style: { flex: 2, minWidth: "200px" } }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Test \u2014 ", region), /* @__PURE__ */ React.createElement("select", { value: selectedTest, onChange: (e) => setSelectedTest(e.target.value), style: inputStyle }, /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 select test \u2014"), available.map((t) => /* @__PURE__ */ React.createElement("option", { key: t }, t)), available.length === 0 && /* @__PURE__ */ React.createElement("option", { disabled: true }, "All tests for this region added"))), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: addTest,
+      disabled: !selectedTest,
+      style: { padding: "7px 18px", alignSelf: "flex-end", background: selectedTest ? C.O : C.creamDark, color: selectedTest ? C.white : C.muted, border: "none", borderRadius: "6px", cursor: selectedTest ? "pointer" : "default", fontFamily: "inherit", fontSize: "12px", fontWeight: "bold", transition: "all 0.15s", whiteSpace: "nowrap" }
+    },
+    "+ Add"
+  )), tests.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: "13px", gap: "8px", opacity: 0.5 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "28px" } }, "\uFF0B"), /* @__PURE__ */ React.createElement("div", null, "Select a test above to begin")) : Object.entries(byRegion).map(([r, rTests]) => /* @__PURE__ */ React.createElement("div", { key: r }, /* @__PURE__ */ React.createElement(RegionHeading, { label: r, color: C.O }), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "8px" } }, rTests.map((test) => /* @__PURE__ */ React.createElement(
+    SpecialTestCard,
+    {
+      key: test.name,
+      testName: test.name,
+      data: test,
+      onChange: (updated) => updateTest(test.name, updated),
+      onRemove: () => removeTest(test.name)
+    }
+  ))))));
+}
+function TreatmentItemCard({ item, onRemove, onUpdateTechniques, accentColor }) {
+  var _a;
+  const isJoint = item.structureType === "joint";
+  const techniques = isJoint ? JOINT_TECHNIQUES : SOFT_TISSUE_TECHNIQUES;
+  const typeColor = isJoint ? C.joint : C.softTissue;
+  const typeLabel = isJoint ? "Joint" : "Soft tissue";
+  const borderColor = accentColor || typeColor;
+  return /* @__PURE__ */ React.createElement("div", { style: { background: C.white, border: `1px solid ${C.border}`, borderLeft: `4px solid ${borderColor}`, borderRadius: "8px", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: "bold", fontSize: "13px", color: typeColor } }, item.structure), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", color: C.muted, marginTop: "1px" } }, /* @__PURE__ */ React.createElement("span", { style: { background: typeColor, color: C.white, borderRadius: "8px", padding: "1px 6px", fontSize: "9px", marginRight: "6px" } }, typeLabel), item.region)), /* @__PURE__ */ React.createElement("button", { onClick: onRemove, style: { background: "none", border: "none", cursor: "pointer", color: C.muted, fontSize: "18px", lineHeight: 1, padding: "0 4px" } }, "\xD7")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "Techniques"), /* @__PURE__ */ React.createElement(TechniquePicker, { options: techniques, selected: (_a = item.techniques) != null ? _a : [], onChange: onUpdateTechniques, accentColor: typeColor })));
+}
+function AssessmentTab({ data, onChange }) {
+  var _a, _b, _c;
+  const set = (field, value) => onChange(__spreadProps(__spreadValues({}, data), { [field]: value }));
+  const [selRegion, setSelRegion] = useState("");
+  const [selStructureType, setSelStructureType] = useState("");
+  const [selStructure, setSelStructure] = useState("");
+  const planItems = (_a = data.planItems) != null ? _a : [];
+  const hierarchy = selRegion ? TREATMENT_HIERARCHY[selRegion] : null;
+  const structuresForType = hierarchy && selStructureType ? selStructureType === "softTissue" ? hierarchy.softTissue : hierarchy.joints : [];
+  const usedKeys = planItems.map((i) => `${i.region}::${i.structure}`);
+  const availableStructures = structuresForType.filter((s) => !usedKeys.includes(`${selRegion}::${s}`));
+  const addItem = () => {
+    if (!selStructure) return;
+    onChange(__spreadProps(__spreadValues({}, data), { planItems: [...planItems, { region: selRegion, structureType: selStructureType, structure: selStructure, techniques: [] }] }));
+    setSelStructure("");
+  };
+  const updateItemTechniques = (region, structure, techniques) => onChange(__spreadProps(__spreadValues({}, data), { planItems: planItems.map((i) => i.region === region && i.structure === structure ? __spreadProps(__spreadValues({}, i), { techniques }) : i) }));
+  const removeItem = (region, structure) => onChange(__spreadProps(__spreadValues({}, data), { planItems: planItems.filter((i) => !(i.region === region && i.structure === structure)) }));
+  const itemsByRegion = planItems.reduce((acc, item) => {
+    if (!acc[item.region]) acc[item.region] = [];
+    acc[item.region].push(item);
+    return acc;
+  }, {});
+  return /* @__PURE__ */ React.createElement("div", { style: { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" } }, /* @__PURE__ */ React.createElement("div", { style: { background: "#EEF5EC", border: `1px solid ${C.A}`, borderRadius: "6px", padding: "8px 12px", fontSize: "11px", color: C.A, lineHeight: "1.6" } }, /* @__PURE__ */ React.createElement("strong", null, "Scope note:"), ' Use language like "findings are consistent with", "tissues of concern include", "findings suggest involvement of". Avoid stating the client "has" a specific condition.'), [
+    { field: "synthesis", label: "Neutral synthesis", hint: "Brief summary of what the findings suggest \u2014 use 'consistent with' or 'findings suggest'", rows: 3, placeholder: "e.g. 'Findings are consistent with involvement of the upper trapezius and suboccipitals, with restricted lower cervical mobility contributing to the presenting complaint.'" },
+    { field: "priorities", label: "Treatment priorities", hint: "What will you address first and why, based on today's findings?", rows: 2, placeholder: "e.g. 'Priority: address upper trapezius and levator TrPs, restore cervical rotation ROM, then reassess.'" },
+    { field: "changeFromLast", label: "Change since last session", hint: "How does today compare to the previous session?", rows: 2, placeholder: "e.g. 'Client reports improvement in morning stiffness. Rotation ROM improved bilaterally.'" },
+    { field: "continueOrModify", label: "Continue or modify approach", hint: "Do today's findings support continuing as planned, or does something need to change?", rows: 2, placeholder: "e.g. 'Today's findings support continuing the current approach.'" }
+  ].map(({ field, label, hint, rows, placeholder }) => {
+    var _a2;
+    return /* @__PURE__ */ React.createElement("div", { key: field, style: { background: C.white, border: `1px solid ${data[field] ? C.A : C.border}`, borderLeft: `4px solid ${data[field] ? C.A : C.border}`, borderRadius: "6px", padding: "10px 12px", transition: "all 0.15s" } }, /* @__PURE__ */ React.createElement("label", { style: labelStyle(data[field] ? C.A : C.muted) }, label), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", color: C.muted, marginBottom: "5px", fontStyle: "italic" } }, hint), /* @__PURE__ */ React.createElement("textarea", { rows, placeholder, value: (_a2 = data[field]) != null ? _a2 : "", onChange: (e) => set(field, e.target.value), style: __spreadProps(__spreadValues({}, inputStyle), { resize: "vertical", lineHeight: "1.5" }) }));
+  }), /* @__PURE__ */ React.createElement("div", { style: { height: "1px", background: C.border, margin: "4px 0" } }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", fontWeight: "bold", letterSpacing: "0.08em", textTransform: "uppercase", color: C.A } }, "Treatment performed"), /* @__PURE__ */ React.createElement("div", { style: { padding: "12px", background: C.white, border: `1px solid ${C.border}`, borderRadius: "8px", display: "flex", flexDirection: "column", gap: "8px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "flex-end" } }, /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: "130px" } }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "1. Region"), /* @__PURE__ */ React.createElement("select", { value: selRegion, onChange: (e) => {
+    setSelRegion(e.target.value);
+    setSelStructureType("");
+    setSelStructure("");
+  }, style: inputStyle }, /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 select \u2014"), CANONICAL_REGIONS.map((r) => /* @__PURE__ */ React.createElement("option", { key: r }, r)))), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: "130px", opacity: selRegion ? 1 : 0.4, transition: "opacity 0.2s" } }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "2. Type"), /* @__PURE__ */ React.createElement("select", { value: selStructureType, onChange: (e) => {
+    setSelStructureType(e.target.value);
+    setSelStructure("");
+  }, disabled: !selRegion, style: inputStyle }, /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 select \u2014"), ((_b = hierarchy == null ? void 0 : hierarchy.softTissue) == null ? void 0 : _b.length) > 0 && /* @__PURE__ */ React.createElement("option", { value: "softTissue" }, "Soft tissue"), ((_c = hierarchy == null ? void 0 : hierarchy.joints) == null ? void 0 : _c.length) > 0 && /* @__PURE__ */ React.createElement("option", { value: "joint" }, "Joint"))), /* @__PURE__ */ React.createElement("div", { style: { flex: 2, minWidth: "160px", opacity: selStructureType ? 1 : 0.4, transition: "opacity 0.2s" } }, /* @__PURE__ */ React.createElement("label", { style: labelStyle() }, "3. Structure"), /* @__PURE__ */ React.createElement("select", { value: selStructure, onChange: (e) => setSelStructure(e.target.value), disabled: !selStructureType, style: inputStyle }, /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 select \u2014"), availableStructures.map((s) => /* @__PURE__ */ React.createElement("option", { key: s }, s)), selStructureType && availableStructures.length === 0 && /* @__PURE__ */ React.createElement("option", { disabled: true }, "All structures added"))), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: addItem,
+      disabled: !selStructure,
+      style: { padding: "7px 18px", alignSelf: "flex-end", background: selStructure ? C.A : C.creamDark, color: selStructure ? C.white : C.muted, border: "none", borderRadius: "6px", cursor: selStructure ? "pointer" : "default", fontFamily: "inherit", fontSize: "12px", fontWeight: "bold", transition: "all 0.15s", whiteSpace: "nowrap" }
+    },
+    "+ Add"
+  )), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "12px", fontSize: "10px", flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("span", { style: { color: C.softTissue } }, "\u25A0 Soft tissue \u2192 General soft tissue, MFR, TrP, Cross-fibre friction, Pin and stretch, Passive stretch, PNF, MET, Dry needling, Cupping"), /* @__PURE__ */ React.createElement("span", { style: { color: C.joint } }, "\u25A0 Joint \u2192 Joint mobilisation, Traction, Scapular mobilisation"))), planItems.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { padding: "16px", textAlign: "center", color: C.muted, fontSize: "12px", opacity: 0.6 } }, "Select a region, type, and structure above to record what you treated") : Object.entries(itemsByRegion).map(([region, items]) => /* @__PURE__ */ React.createElement("div", { key: region }, /* @__PURE__ */ React.createElement(RegionHeading, { label: region, color: C.A }), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "8px" } }, items.map((item) => /* @__PURE__ */ React.createElement(
+    TreatmentItemCard,
+    {
+      key: `${item.region}-${item.structure}`,
+      item,
+      onRemove: () => removeItem(item.region, item.structure),
+      onUpdateTechniques: (techniques) => updateItemTechniques(item.region, item.structure, techniques),
+      accentColor: C.A
+    }
+  ))))));
+}
+function PlanTab({ data, onChange }) {
+  const set = (field, value) => onChange(__spreadProps(__spreadValues({}, data), { [field]: value }));
+  return /* @__PURE__ */ React.createElement("div", { style: { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" } }, /* @__PURE__ */ React.createElement("div", { style: { background: "#F3F0F8", border: `1px solid ${C.P}`, borderRadius: "6px", padding: "8px 12px", fontSize: "11px", color: C.P, lineHeight: "1.6" } }, "What the client is taking away from this session \u2014 home care, load adjustments, exercises, stretches, lifestyle changes."), [
+    { field: "homeAdvice", label: "Home care & advice", rows: 3, placeholder: "Specific stretches, exercises, self-massage, heat/ice, load adjustments, postural cues\u2026" },
+    { field: "workChanges", label: "Work / activity changes", rows: 2, placeholder: "Ergonomic adjustments, activity modifications, things to avoid this week\u2026" },
+    { field: "reviewPlan", label: "Review / follow-up", rows: 2, placeholder: "Recommended return interval, what to monitor, when to seek further care\u2026" },
+    { field: "treatmentGoals", label: "Agreed treatment goals", rows: 2, placeholder: "Short and long-term goals discussed with the client\u2026" }
+  ].map(({ field, label, rows, placeholder }) => {
+    var _a;
+    return /* @__PURE__ */ React.createElement("div", { key: field, style: { background: C.white, border: `1px solid ${data[field] ? C.P : C.border}`, borderLeft: `4px solid ${data[field] ? C.P : C.border}`, borderRadius: "6px", padding: "10px 12px", transition: "all 0.15s" } }, /* @__PURE__ */ React.createElement("label", { style: labelStyle(data[field] ? C.P : C.muted) }, label), /* @__PURE__ */ React.createElement("textarea", { rows, placeholder, value: (_a = data[field]) != null ? _a : "", onChange: (e) => set(field, e.target.value), style: __spreadProps(__spreadValues({}, inputStyle), { resize: "vertical", lineHeight: "1.5" }) }));
+  }));
+}
+function buildNoteHTML(client, session) {
+  var _a, _b, _c, _d, _e, _f, _g, _h;
+  const { subjective = {}, findings = {}, specialTests = [], assessment = {}, plan = {}, bodyAnnotations = [] } = session;
+  const planItems = ((_a = assessment.planItems) != null ? _a : []).filter((i) => {
+    var _a2;
+    return ((_a2 = i.techniques) == null ? void 0 : _a2.length) > 0;
+  });
+  const fmt = (val) => val || "\u2014";
+  const date = session.date ? new Date(session.date).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" }) : "\u2014";
+  const sHead = (letter, label, color) => `<div style="display:flex;align-items:center;gap:8px;margin:10px 0 5px;">
+      <span style="background:${color};color:#fff;font-weight:bold;font-size:11px;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">${letter}</span>
+      <span style="font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:0.08em;color:${color};">${label}</span>
+      <span style="flex:1;height:1px;background:#DDD0C0;display:inline-block;"></span>
+    </div>`;
+  const row = (cells, isHeader) => `<tr>${cells.map(
+    (c) => isHeader ? `<th style="background:#6B1F2A;color:#FAF6EF;padding:4px 6px;font-size:9px;text-transform:uppercase;letter-spacing:0.06em;text-align:left;">${c}</th>` : `<td style="padding:4px 6px;font-size:10px;border-bottom:1px solid #DDD0C0;vertical-align:top;">${c}</td>`
+  ).join("")}</tr>`;
+  const socratesRows = [
+    ["Site", [(_b = subjective.modifiers) == null ? void 0 : _b.join(" "), subjective.region].filter(Boolean).join(" \xB7 ") || "\u2014"],
+    ["Onset", fmt(subjective.onset)],
+    ["Character", fmt(subjective.character)],
+    ["Radiation", fmt(subjective.radiation)],
+    ["Associations", fmt(subjective.associations)],
+    ["Time course", fmt(subjective.timing)],
+    ["Made worse by", ((_c = subjective.exacerbating) != null ? _c : []).join(", ") || "\u2014"],
+    ["Relieved by", ((_d = subjective.relieving) != null ? _d : []).join(", ") || "\u2014"],
+    ["Severity", subjective.severityRest || subjective.severityWorst ? `Rest: ${(_e = subjective.severityRest) != null ? _e : "\u2014"}/10 \xB7 Worst: ${(_f = subjective.severityWorst) != null ? _f : "\u2014"}/10` : "\u2014"]
+  ].filter(([, v]) => v !== "\u2014");
+  const oRows = Object.entries(findings).map(([key, f]) => {
+    var _a2, _b2;
+    const loc = ((_a2 = f.modifiers) == null ? void 0 : _a2.length) > 0 ? f.modifiers.join(" \xB7 ") : "\u2014";
+    const finding = f.mode === "Movement / ROM" ? [f.range != null ? `Range: ${f.range}/5` : null, f.exceedsNormal ? "Exceeds normal" : null, f.endFeel ? `End-feel: ${f.endFeel}` : null, f.painScore != null ? `Pain: ${f.painScore}/10` : null, ((_b2 = f.qualityDescriptors) == null ? void 0 : _b2.length) > 0 ? f.qualityDescriptors.join(", ") : null].filter(Boolean).join(" \xB7 ") : fmt(f.result);
+    return [f.label || key, loc, finding || "\u2014", f.notes || ""];
+  });
+  const stRows = specialTests.map((t) => [t.name, t.region, `BL:${t.beforeL || "\u2014"} BR:${t.beforeR || "\u2014"}`, `AL:${t.afterL || "\u2014"} AR:${t.afterR || "\u2014"}`, t.notes || ""]);
+  const pItems = ((_g = assessment.planItems) != null ? _g : []).filter((i) => {
+    var _a2;
+    return ((_a2 = i.techniques) == null ? void 0 : _a2.length) > 0;
+  });
+  const clientSlug = (client.name || "client").replace(/\s+/g, "-").toLowerCase();
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Session Note \u2014 ${client.name} \u2014 ${date}</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Georgia,serif;font-size:11px;color:#2A1A1E;background:#fff}@page{size:A4;margin:14mm}@media print{.no-print{display:none!important}body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}.page{max-width:780px;margin:0 auto;padding:16px}table{width:100%;border-collapse:collapse;margin-bottom:6px}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px}.nh{background:#6B1F2A;color:#FAF6EF;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.nh h1{font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:#C9973A}.cb{display:flex;gap:20px;background:#F0E8D8;padding:6px 10px;font-size:10px;margin-bottom:8px;border-radius:4px}.cb strong{color:#6B1F2A}.narr{background:#FAF6EF;border:1px solid #DDD0C0;border-radius:4px;padding:6px 8px;font-size:10px;line-height:1.5;margin-top:4px;white-space:pre-wrap}.tools{display:flex;gap:8px;margin-bottom:12px}.btn{padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:bold}.warn{background:#FEF2F2;border:1px solid #FECACA;border-radius:4px;padding:4px 8px;font-size:10px;color:#C62828;margin-top:4px}</style>
+</head><body><div class="page">
+<div class="tools no-print">
+  <button class="btn" style="background:#6B1F2A;color:#FAF6EF" onclick="window.print()">\u{1F5A8} Print / Save as PDF</button>
+  <button class="btn" style="background:#F0E8D8;color:#6B1F2A;border:1px solid #DDD0C0" onclick="downloadHTML()">\u2B07 Download HTML</button>
+</div>
+<div class="nh"><div><h1>Eadig Manual Therapies</h1><div style="font-size:10px;color:rgba(255,255,255,0.6)">Session Notes</div></div><div style="font-size:10px;color:rgba(255,255,255,0.6)">Generated ${(/* @__PURE__ */ new Date()).toLocaleDateString("en-AU")}</div></div>
+<div class="cb"><span><strong>Client:</strong> ${fmt(client.name)}</span><span><strong>DOB:</strong> ${fmt(client.dob)}</span><span><strong>Date:</strong> ${date}</span><span><strong>Session:</strong> ${fmt(String(session.sessionNumber))}</span></div>
+${((_h = client.contraindications) != null ? _h : []).length > 0 ? `<div class="warn">\u26A0 Contraindications on file: ${client.contraindications.join(", ")}</div>` : ""}
+<div class="two-col">
+<div>
+${sHead("S", "Subjective", "#B05520")}
+${socratesRows.length > 0 ? `<table>${socratesRows.map(([l, v]) => row([`<strong>${l}</strong>`, v])).join("")}</table>` : `<div style="color:#7A6068;font-size:10px;font-style:italic">No subjective data recorded.</div>`}
+${subjective.narrative ? `<div class="narr">${subjective.narrative}</div>` : ""}
+${sHead("O", "Objective", "#1A5C6B")}
+${oRows.length > 0 ? `<table>${row(["Test", "Location", "Finding", "Notes"], true)}${oRows.map((r) => row(r)).join("")}</table>` : `<div style="color:#7A6068;font-size:10px;font-style:italic">No objective findings recorded.</div>`}
+${stRows.length > 0 ? `<div style="font-size:10px;font-weight:bold;color:#1A5C6B;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.06em">Special Tests</div><table>${row(["Test", "Region", "Before", "After", "Notes"], true)}${stRows.map((r) => row(r)).join("")}</table>` : ""}
+${bodyAnnotations.length > 0 ? `
+<div style="font-size:10px;font-weight:bold;color:#6B1F2A;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.06em">Body Map Annotations</div>
+<table>
+${row(["#", "Layer", "Zone", "Note"], true)}
+${bodyAnnotations.map((a) => row([
+    `<span style="background:${a.layer === "S" ? "#B05520" : "#1A5C6B"};color:#fff;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;font-size:9px;font-weight:bold">${a.number}</span>`,
+    `<span style="color:${a.layer === "S" ? "#B05520" : "#1A5C6B"};font-weight:bold">${a.layer}</span>`,
+    a.zoneLabel,
+    a.note || "\u2014"
+  ])).join("")}
+</table>` : ""}
+</div>
+<div>
+${sHead("A", "Action", "#3B5E2B")}
+${["synthesis", "priorities", "changeFromLast", "continueOrModify"].some((f) => assessment[f]) ? `<table>${assessment.synthesis ? row(["<strong>Synthesis</strong>", assessment.synthesis]) : ""}${assessment.priorities ? row(["<strong>Priorities</strong>", assessment.priorities]) : ""}${assessment.changeFromLast ? row(["<strong>Change since last</strong>", assessment.changeFromLast]) : ""}${assessment.continueOrModify ? row(["<strong>Continue / modify</strong>", assessment.continueOrModify]) : ""}</table>` : ""}
+${pItems.length > 0 ? `<div style="font-size:10px;font-weight:bold;color:#3B5E2B;margin:6px 0 3px;text-transform:uppercase;letter-spacing:.06em">Treatment performed</div><table>${row(["Structure", "Type", "Techniques"], true)}${pItems.map((i) => row([i.structure, `<span style="background:${i.structureType === "joint" ? "#1E3A5C" : "#5C3A1E"};color:#fff;border-radius:6px;padding:1px 5px;font-size:9px">${i.structureType === "joint" ? "Joint" : "Soft tissue"}</span>`, i.techniques.join(", ")])).join("")}</table>` : `<div style="color:#7A6068;font-size:10px;font-style:italic">No treatment recorded.</div>`}
+${sHead("P", "Prescription", "#4A3570")}
+${plan.homeAdvice || plan.workChanges || plan.reviewPlan || plan.treatmentGoals ? `<table>${plan.homeAdvice ? row(["<strong>Home care</strong>", plan.homeAdvice]) : ""}${plan.workChanges ? row(["<strong>Work / activity</strong>", plan.workChanges]) : ""}${plan.reviewPlan ? row(["<strong>Review</strong>", plan.reviewPlan]) : ""}${plan.treatmentGoals ? row(["<strong>Goals</strong>", plan.treatmentGoals]) : ""}</table>` : ""}
+${specialTests.some((t) => t.afterL === "+" || t.afterR === "+") ? `<div class="warn">\u26A0 One or more special tests remain positive after treatment.</div>` : ""}
+</div></div>
+<div style="margin-top:12px;padding-top:6px;border-top:1px solid #DDD0C0;font-size:9px;color:#7A6068;display:flex;justify-content:space-between"><span>Eadig Manual Therapies \u2014 Confidential clinical record</span><span>${client.name} \xB7 Session ${session.sessionNumber} \xB7 ${date}</span></div>
+</div>
+<script>function downloadHTML(){const b=new Blob([document.documentElement.outerHTML],{type:"text/html"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="session-note-${clientSlug}-${date.replace(/\s/g, "-")}.html";a.click()}<\/script>
+</body></html>`;
+}
+function NoteOutputModal({ client, session, onClose }) {
+  const openNote = () => {
+    const html = buildNoteHTML(client, session);
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 3e4);
+  };
+  return /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { background: C.white, borderRadius: "10px", padding: "28px 32px", maxWidth: "420px", width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.3)", fontFamily: "inherit" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: "15px", fontWeight: "bold", color: C.maroon, marginBottom: "8px" } }, "Generate Session Note"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "12px", color: C.muted, marginBottom: "20px", lineHeight: "1.6" } }, "Opens your note in a new tab as a compact A4 document.", /* @__PURE__ */ React.createElement("br", null), "Print (or Save as PDF), or Download as an HTML file."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "10px" } }, /* @__PURE__ */ React.createElement("button", { onClick: openNote, style: { flex: 1, padding: "10px", background: C.maroon, color: C.white, border: "none", borderRadius: "6px", cursor: "pointer", fontFamily: "inherit", fontSize: "13px", fontWeight: "bold" } }, "Open Note"), /* @__PURE__ */ React.createElement("button", { onClick: onClose, style: { padding: "10px 16px", background: C.creamDark, color: C.muted, border: `1px solid ${C.border}`, borderRadius: "6px", cursor: "pointer", fontFamily: "inherit", fontSize: "13px" } }, "Cancel"))));
+}
+function SessionScreen({ session: initialSession, client, allSessions, onSave, onBack }) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+  const [soapTab, setSoapTab] = useState("S");
+  const [session, setSession] = useState(initialSession);
+  const [dirty, setDirty] = useState(false);
+  const [showNote, setShowNote] = useState(false);
+  const updateSession = (patch) => {
+    setSession((s) => __spreadValues(__spreadValues({}, s), patch));
+    setDirty(true);
+  };
+  const updateFinding = (entryKey, patch) => {
+    var _a2, _b2, _c2;
+    return updateSession({ findings: __spreadProps(__spreadValues({}, (_a2 = session.findings) != null ? _a2 : {}), { [entryKey]: __spreadValues(__spreadValues({}, (_c2 = (_b2 = session.findings) == null ? void 0 : _b2[entryKey]) != null ? _c2 : { modifiers: [] }), patch) }) });
+  };
+  const handleSave = async () => {
+    const updated = __spreadProps(__spreadValues({}, session), { updatedAt: today });
+    await onSave(updated);
+    setDirty(false);
+  };
+  const progressMap = {
+    S: Object.values((_a = session.subjective) != null ? _a : {}).filter(Boolean).length,
+    O: Object.keys((_b = session.findings) != null ? _b : {}).length + ((_c = session.specialTests) != null ? _c : []).length,
+    A: Object.values((_d = session.assessment) != null ? _d : {}).filter((v) => v && typeof v !== "object").length + ((_f = (_e = session.assessment) == null ? void 0 : _e.planItems) != null ? _f : []).filter((i) => {
+      var _a2;
+      return ((_a2 = i.techniques) != null ? _a2 : []).length > 0;
+    }).length,
+    P: Object.values((_g = session.plan) != null ? _g : {}).filter(Boolean).length
+  };
+  const hasContraindications = ((_h = client.contraindications) != null ? _h : []).length > 0;
+  return /* @__PURE__ */ React.createElement("div", { style: { height: "100vh", display: "flex", flexDirection: "column", background: C.cream, color: C.text, fontFamily: "'Georgia', 'Times New Roman', serif", overflow: "hidden" } }, showNote && /* @__PURE__ */ React.createElement(NoteOutputModal, { client, session, onClose: () => setShowNote(false) }), /* @__PURE__ */ React.createElement(
+    AppBar,
+    {
+      subtitle: `${client.name} \u2014 Session ${session.sessionNumber}`,
+      onBack,
+      actions: /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "8px", alignItems: "center" } }, dirty && /* @__PURE__ */ React.createElement("span", { style: { fontSize: "10px", color: "rgba(255,255,255,0.5)", fontStyle: "italic" } }, "Unsaved changes"), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: () => setShowNote(true),
+          style: { padding: "5px 12px", background: "rgba(255,255,255,0.15)", color: C.white, border: "1px solid rgba(255,255,255,0.3)", borderRadius: "5px", cursor: "pointer", fontFamily: "inherit", fontSize: "11px" }
+        },
+        "Generate Note \u2197"
+      ), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: handleSave,
+          style: { padding: "5px 14px", background: C.gold, color: C.maroon, border: "none", borderRadius: "5px", cursor: "pointer", fontFamily: "inherit", fontSize: "11px", fontWeight: "bold" }
+        },
+        "Save Session"
+      ))
+    }
+  ), hasContraindications && /* @__PURE__ */ React.createElement("div", { style: { background: "#FEF2F2", borderBottom: "1px solid #FECACA", padding: "6px 20px", fontSize: "11px", color: "#C62828", display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 } }, /* @__PURE__ */ React.createElement("span", { style: { fontWeight: "bold" } }, "\u26A0"), client.contraindications.join(" \xB7 ")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", background: C.white, borderBottom: `2px solid ${C[soapTab]}`, flexShrink: 0 } }, SOAP_TABS.map((tab) => {
+    const active = soapTab === tab;
+    const color = C[tab];
+    const prog = progressMap[tab];
+    return /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        key: tab,
+        onClick: () => setSoapTab(tab),
+        style: { flex: 1, padding: "10px 8px", border: "none", borderBottom: active ? `3px solid ${color}` : "3px solid transparent", background: active ? `${color}18` : "transparent", cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", transition: "all 0.15s" }
+      },
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: "18px", fontWeight: "bold", color: active ? color : C.muted, lineHeight: 1 } }, tab),
+      /* @__PURE__ */ React.createElement("div", { style: { fontSize: "10px", color: active ? color : C.muted, letterSpacing: "0.05em" } }, SOAP_LABELS[tab]),
+      prog > 0 && /* @__PURE__ */ React.createElement("div", { style: { fontSize: "9px", background: color, color: C.white, borderRadius: "8px", padding: "1px 6px", marginTop: "1px" } }, prog, " ", tab === "O" ? "findings" : tab === "A" ? "items" : tab === "P" ? "fields" : "fields")
+    );
+  })), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, padding: "14px 16px", display: "flex", flexDirection: "column", overflow: "hidden" } }, soapTab === "S" && /* @__PURE__ */ React.createElement(SubjectiveTab, { data: (_i = session.subjective) != null ? _i : {}, onChange: (s) => updateSession({ subjective: s }) }), soapTab === "O" && /* @__PURE__ */ React.createElement(ObjectiveTab, { findings: (_j = session.findings) != null ? _j : {}, onUpdateFinding: updateFinding, specialTests: (_k = session.specialTests) != null ? _k : [], onUpdateSpecialTests: (st) => updateSession({ specialTests: st }), bodyAnnotations: (_l = session.bodyAnnotations) != null ? _l : [], onUpdateBodyAnnotations: (ba) => updateSession({ bodyAnnotations: ba }) }), soapTab === "A" && /* @__PURE__ */ React.createElement(AssessmentTab, { data: (_m = session.assessment) != null ? _m : {}, onChange: (a) => updateSession({ assessment: a }) }), soapTab === "P" && /* @__PURE__ */ React.createElement(PlanTab, { data: (_n = session.plan) != null ? _n : { planItems: [] }, onChange: (p) => updateSession({ plan: p }) })));
+}
+function App() {
+  var _a, _b;
+  const [screen, setScreen] = useState("loading");
+  const [clients, setClients] = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [activeClientId, setActiveClientId] = useState(null);
+  const [activeSessionId, setActiveSessionId] = useState(null);
+  const [editingClient, setEditingClient] = useState(null);
+  useEffect(() => {
+    (async () => {
+      const [c, s] = await Promise.all([storage.getClients(), storage.getSessions()]);
+      setClients(c);
+      setSessions(s);
+      setScreen("clientList");
+    })();
+  }, []);
+  const clientsWithCount = clients.map((c) => __spreadProps(__spreadValues({}, c), {
+    sessionCount: sessions.filter((s) => s.clientId === c.id).length
+  }));
+  const activeClient = (_a = clients.find((c) => c.id === activeClientId)) != null ? _a : null;
+  const activeSession = (_b = sessions.find((s) => s.id === activeSessionId)) != null ? _b : null;
+  const saveClient = async (client) => {
+    const updated = clients.find((c) => c.id === client.id) ? clients.map((c) => c.id === client.id ? client : c) : [...clients, client];
+    setClients(updated);
+    await storage.saveClients(updated);
+    setActiveClientId(client.id);
+    setScreen("profile");
+  };
+  const saveSession = async (session) => {
+    const updated = sessions.find((s) => s.id === session.id) ? sessions.map((s) => s.id === session.id ? session : s) : [...sessions, session];
+    setSessions(updated);
+    await storage.saveSessions(updated);
+  };
+  const startNewSession = () => {
+    const clientSessions = sessions.filter((s) => s.clientId === activeClientId);
+    const newSession = {
+      id: genId(),
+      clientId: activeClientId,
+      sessionNumber: clientSessions.length + 1,
+      date: today,
+      subjective: {},
+      findings: {},
+      specialTests: [],
+      assessment: {},
+      plan: { planItems: [] },
+      createdAt: today,
+      updatedAt: null
+    };
+    setSessions((prev) => [...prev, newSession]);
+    setActiveSessionId(newSession.id);
+    setScreen("session");
+  };
+  const handleBackup = () => {
+    const data = {
+      version: "eadig-0.7.2",
+      exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      clients,
+      sessions
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `eadig-backup-${today}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1e4);
+  };
+  const handleRestore = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const data = JSON.parse(evt.target.result);
+        if (!data.clients || !data.sessions) {
+          alert("This doesn't look like a valid Eadig backup file.");
+          return;
+        }
+        const confirmed = window.confirm(
+          `This will replace all current data with the backup from ${data.exportedAt ? new Date(data.exportedAt).toLocaleDateString("en-AU") : "unknown date"}.
+
+${data.clients.length} clients, ${data.sessions.length} sessions.
+
+Are you sure?`
+        );
+        if (!confirmed) return;
+        setClients(data.clients);
+        setSessions(data.sessions);
+        await storage.saveClients(data.clients);
+        await storage.saveSessions(data.sessions);
+        alert("Restore complete.");
+      } catch (err) {
+        alert("Could not read backup file. Make sure it's a valid Eadig JSON backup.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+  if (screen === "loading") {
+    return /* @__PURE__ */ React.createElement("div", { style: { height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: C.cream, fontFamily: "'Georgia', serif", color: C.muted, flexDirection: "column", gap: "12px" } }, /* @__PURE__ */ React.createElement("div", { style: { width: "32px", height: "32px", border: `2px solid ${C.gold}`, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", color: C.gold, fontWeight: "bold" } }, "E"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: "12px" } }, "Loading\u2026"));
+  }
+  if (screen === "clientList") return /* @__PURE__ */ React.createElement(
+    ClientListScreen,
+    {
+      clients: clientsWithCount,
+      onSelectClient: (id) => {
+        setActiveClientId(id);
+        setScreen("profile");
+      },
+      onNewClient: () => {
+        setEditingClient(null);
+        setScreen("intake");
+      },
+      onBackup: handleBackup,
+      onRestore: handleRestore
+    }
+  );
+  if (screen === "intake") return /* @__PURE__ */ React.createElement(
+    IntakeFormScreen,
+    {
+      client: editingClient,
+      onSave: saveClient,
+      onCancel: () => setScreen(activeClientId ? "profile" : "clientList")
+    }
+  );
+  if (screen === "profile" && activeClient) return /* @__PURE__ */ React.createElement(
+    ClientProfileScreen,
+    {
+      client: activeClient,
+      sessions,
+      onNewSession: startNewSession,
+      onOpenSession: (id) => {
+        setActiveSessionId(id);
+        setScreen("session");
+      },
+      onEditClient: () => {
+        setEditingClient(activeClient);
+        setScreen("intake");
+      },
+      onBack: () => setScreen("clientList")
+    }
+  );
+  if (screen === "session" && activeSession && activeClient) return /* @__PURE__ */ React.createElement(
+    SessionScreen,
+    {
+      session: activeSession,
+      client: activeClient,
+      allSessions: sessions,
+      onSave: saveSession,
+      onBack: () => setScreen("profile")
+    }
+  );
+  return null;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+setTimeout(() => {
+  const s = document.getElementById('splash');
+  if (s) { s.classList.add('hide'); setTimeout(() => s.remove(), 450); }
+}, 400);
+</script>
+<script>
+const _m = "{\n  \"name\": \"Eadig Manual Therapies \u2014 Session Notes\",\n  \"short_name\": \"Eadig Notes\",\n  \"description\": \"Remedial Massage Clinical Notes for Australian RMTs\",\n  \"start_url\": \".\",\n  \"display\": \"standalone\",\n  \"background_color\": \"#FAF6EF\",\n  \"theme_color\": \"#6B1F2A\",\n  \"orientation\": \"any\",\n  \"icons\": [\n    {\n      \"src\": \"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%236B1F2A'/%3E%3Ccircle cx='96' cy='96' r='70' fill='none' stroke='%23C9973A' stroke-width='8'/%3E%3Ctext x='96' y='112' text-anchor='middle' font-family='Georgia' font-size='72' font-weight='bold' fill='%23C9973A'%3EE%3C/text%3E%3C/svg%3E\",\n      \"sizes\": \"192x192\",\n      \"type\": \"image/svg+xml\",\n      \"purpose\": \"any maskable\"\n    }\n  ]\n}";
+const _mb = new Blob([_m], {type:'application/manifest+json'});
+document.getElementById('pwa-manifest').href = URL.createObjectURL(_mb);
+if ('serviceWorker' in navigator) {
+  const _sw = "\nconst CACHE = 'eadig-v072';\nself.addEventListener('install', e => {\n  e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./'])).then(() => self.skipWaiting()));\n});\nself.addEventListener('activate', e => {\n  e.waitUntil(caches.keys().then(keys =>\n    Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))\n  ).then(() => self.clients.claim()));\n});\nself.addEventListener('fetch', e => {\n  e.respondWith(\n    caches.match(e.request).then(cached => cached || fetch(e.request).then(resp => {\n      const clone = resp.clone();\n      caches.open(CACHE).then(c => c.put(e.request, clone));\n      return resp;\n    }))\n  );\n});\n";
+  const _swb = new Blob([_sw], {type:'text/javascript'});
+  navigator.serviceWorker.register(URL.createObjectURL(_swb), {scope:'./'}).catch(()=>{});
+}
+</script>
+</body>
+</html>
